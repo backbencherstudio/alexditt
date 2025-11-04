@@ -86,6 +86,9 @@ export default () => ({
     blog: '/blog',
     avatar: '/avatar',
     websiteInfo: '/website-info',
+    // movie
+    movie: '/movie',
+    cast: '/cast',
     // chat
     attachment: '/attachment',
   },
