@@ -82,6 +82,7 @@ model User {
   roles                Role[]
   role_users           RoleUser[]
   payment_transactions PaymentTransaction[]
+  Movie                Movie[]
 
   @@map("users")
 }
@@ -434,3 +435,58 @@ model UserSetting {
 //   tenant    Organization? @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
 //   @@map("posts")
 // }
+
+// NEW: Media Management Models
+
+model Genre {
+  id   String @id @default(cuid())
+  name String @unique
+
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now())
+  movies     Movie[]
+  // series     Series[]
+
+  @@map("genres")
+}
+
+model Cast {
+  id         String    @id @default(cuid())
+  created_at DateTime  @default(now())
+  updated_at DateTime  @default(now())
+  deleted_at DateTime?
+
+  cast_thumbnail String?
+
+  name        String?
+  description String?
+
+  movie_id String?
+  movie    Movie?  @relation(fields: [movie_id], references: [id])
+
+  @@map("casts")
+}
+
+model Movie {
+  id           String   @id @default(cuid())
+  title        String
+  description  String   @db.Text
+  release_date DateTime
+  duration     String // Duration in minutes
+
+  movie_thumbnail String
+  video           String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relation to the user who uploaded the movie
+  user_id String?
+  user    User?   @relation(fields: [user_id], references: [id])
+
+  casts Cast[]
+
+  genres Genre[]
+
+  @@map("movies")
+}

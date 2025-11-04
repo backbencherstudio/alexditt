@@ -48,7 +48,7 @@ async function bootstrap() {
 
   // storage setup
   SojebStorage.config({
-    driver: 'local',
+    driver: 's3',
     connection: {
       rootUrl: appConfig().storageUrl.rootUrl,
       publicUrl: appConfig().storageUrl.rootUrlPublic,
