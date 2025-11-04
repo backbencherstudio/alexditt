@@ -45,13 +45,13 @@ export class MovieService {
   }
 
   // create movie
-  async create(
+  async createAMovie(
     dto: CreateMovieDto,
-    parsedCast: ParsedCastMember[],
+    parsedCast: any[],
     userId: string,
     movieThumbnailFile: Express.Multer.File,
     videoFile: Express.Multer.File,
-    castThumbnailFiles: Express.Multer.File[],
+    castThumbnailsMap: Map<string, Express.Multer.File>,
   ) {
     try {
       const movieThumbnailFileName = `${StringHelper.randomString()}_${movieThumbnailFile.originalname}`;
@@ -66,24 +66,28 @@ export class MovieService {
         videoFile.buffer,
       );
 
-      const castThumbnailFileNames: string[] = [];
-      for (const file of castThumbnailFiles) {
+      const uploadedCastThumbnails = new Map<string, string>();
+      for (const [key, file] of castThumbnailsMap.entries()) {
         const castThumbnailName = `${StringHelper.randomString()}_${file.originalname}`;
         await SojebStorage.put(
           `${appConfig().storageUrl.cast}/${castThumbnailName}`,
           file.buffer,
         );
-        castThumbnailFileNames.push(castThumbnailName);
+        uploadedCastThumbnails.set(key, castThumbnailName);
       }
 
       return await this.prisma.$transaction(async (tx) => {
         const genreConnect = dto.genreIds.map((id) => ({ id }));
 
-        const castCreateData = parsedCast.map((castMember, index) => ({
-          name: castMember.name,
-          description: castMember.description,
-          cast_thumbnail: castThumbnailFileNames[index],
-        }));
+        const castCreateData = parsedCast.map((castMember) => {
+          const thumbnailFileName = uploadedCastThumbnails.get(castMember.key);
+
+          return {
+            name: castMember.name,
+            description: castMember.description,
+            cast_thumbnail: thumbnailFileName || null,
+          };
+        });
 
         const movie = await tx.movie.create({
           data: {

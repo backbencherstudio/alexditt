@@ -9,21 +9,28 @@ import {
   UseInterceptors,
   Req,
   UploadedFiles,
+  UseGuards,
+  BadRequestException,
 } from '@nestjs/common';
 import { MovieService } from './movie.service';
 import { CreateMovieDto } from './dto/create-movie.dto';
 import { UpdateMovieDto } from './dto/update-movie.dto';
 import { CreateGenreDto } from './dto/create-genre.dto';
-import { FileFieldsInterceptor } from '@nestjs/platform-express';
+import {
+  AnyFilesInterceptor,
+  FileFieldsInterceptor,
+} from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { ParsedCastMember } from './interface/parse-cast.interface';
+import { JwtAuthGuard } from 'src/modules/auth/guards/jwt-auth.guard';
+import { ApiBearerAuth } from '@nestjs/swagger';
 
 @Controller('movie')
 export class MovieController {
   constructor(private readonly movieService: MovieService) {}
 
   // create Genre
-  @Post('create/genre')
+  @Post('genre')
   async createAGenre(@Body() createGenreDto: CreateGenreDto) {
     try {
       const createAGenre = await this.movieService.createAGenre(createGenreDto);
@@ -56,69 +63,20 @@ export class MovieController {
     }
   }
 
-  @Post('create/movie')
-  @UseInterceptors(
-    FileFieldsInterceptor(
-      [
-        { name: 'movie_thumbnail', maxCount: 1 },
-        { name: 'video', maxCount: 1 },
-        { name: 'cast_thumbnails', maxCount: 10 },
-      ],
-      {
-        storage: memoryStorage(),
-      },
-    ),
-  )
+  // create a movie
+  @Post('create')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @UseInterceptors(AnyFilesInterceptor())
   async createAMovie(
     @Body() createMovieDto: CreateMovieDto,
-    @Req() req,
-    @UploadedFiles()
-    files: {
-      movie_thumbnail?: Express.Multer.File[];
-      video?: Express.Multer.File[];
-      cast_thumbnails?: Express.Multer.File[];
-    },
+    @Req() req: any,
+    @UploadedFiles() files: Array<Express.Multer.File>,
   ) {
     try {
-      const userId = req.user.id;
-      const movieThumbnailFile = files?.movie_thumbnail?.[0];
-      const videoFile = files?.video?.[0];
-      const castThumbnailFiles = files?.cast_thumbnails || [];
+      const userId = req.user.userId;
 
-      // --- Validation ---
-      if (!movieThumbnailFile) {
-        return {
-          success: false,
-          message: 'Movie thumbnail is required.',
-        };
-      }
-      if (!videoFile) {
-        return {
-          success: false,
-          message: 'Video file is required.',
-        };
-      }
-
-      // check movie thumbnail size
-      const IMAGE_MAX_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
-      if (movieThumbnailFile.size > IMAGE_MAX_SIZE_BYTES) {
-        return {
-          success: false,
-          message: 'Movie thumbnail size should not exceed 10 MB.',
-        };
-      }
-
-      // checl cast thumbnails size
-      for (const file of castThumbnailFiles) {
-        if (file.size > IMAGE_MAX_SIZE_BYTES) {
-          return {
-            success: false,
-            message: 'Each cast thumbnail size should not exceed 10 MB.',
-          };
-        }
-      }
-
-      let parsedCast: ParsedCastMember[];
+      let parsedCast: any[];
       try {
         parsedCast = JSON.parse(createMovieDto.cast);
       } catch (error) {
@@ -128,19 +86,87 @@ export class MovieController {
         };
       }
 
-      if (parsedCast.length !== castThumbnailFiles.length) {
+      const movieThumbnailFiles = files.filter(
+        (file) => file.fieldname === 'movie_thumbnail',
+      );
+      const videoFiles = files.filter((file) => file.fieldname === 'video');
+      const castThumbnailFiles = files.filter((file) =>
+        file.fieldname.startsWith('cast_'),
+      );
+
+      if (movieThumbnailFiles.length === 0) {
         return {
           success: false,
-          message: 'Number of cast members and cast thumbnails do not match.',
+          message: 'Movie thumbnail is required.',
         };
       }
-      const createAMovie = await this.movieService.create(
+      if (movieThumbnailFiles.length > 1) {
+        return {
+          success: false,
+          message: 'Only one movie thumbnail is allowed.',
+        };
+      }
+
+      if (videoFiles.length === 0) {
+        return {
+          success: false,
+          message: 'Video file is required.',
+        };
+      }
+      if (videoFiles.length > 1) {
+        return {
+          success: false,
+          message: 'Only one video file is allowed.',
+        };
+      }
+
+      const MAX_CAST_THUMBNAILS = parsedCast.length;
+
+      if (castThumbnailFiles.length > MAX_CAST_THUMBNAILS) {
+        return {
+          success: false,
+          message: `You provided ${castThumbnailFiles.length} cast thumbnails, but only ${MAX_CAST_THUMBNAILS} cast members were defined.`,
+        };
+      }
+
+      const movieThumbnailFile = movieThumbnailFiles[0];
+      const videoFile = videoFiles[0];
+      const castThumbnailsMap = new Map<string, Express.Multer.File>();
+      castThumbnailFiles.forEach((file) => {
+        castThumbnailsMap.set(file.fieldname, file);
+      });
+
+      const IMAGE_MAX_SIZE_BYTES = 10 * 1024 * 1024;
+      if (movieThumbnailFile.size > IMAGE_MAX_SIZE_BYTES) {
+        return {
+          success: false,
+          message: 'Movie thumbnail size should not exceed 10 MB.',
+        };
+      }
+
+      for (const file of castThumbnailFiles) {
+        if (file.size > IMAGE_MAX_SIZE_BYTES) {
+          return {
+            success: false,
+            message: `Cast thumbnail '${file.originalname}' size should not exceed 10 MB.`,
+          };
+        }
+      }
+
+      if (castThumbnailFiles.length > parsedCast.length) {
+        return {
+          success: false,
+          message: 'More cast thumbnails provided than cast members.',
+        };
+      }
+
+      const createAMovie = await this.movieService.createAMovie(
         createMovieDto,
         parsedCast,
         userId,
         movieThumbnailFile,
         videoFile,
-        castThumbnailFiles,
+        castThumbnailsMap,
       );
       return {
         success: true,

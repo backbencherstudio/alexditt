@@ -1,4 +1,4 @@
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   IsString,
   IsNotEmpty,
@@ -26,7 +26,12 @@ export class CreateMovieDto {
   duration: string;
 
   @IsArray()
-  @Type(() => String)
+  @Transform(({ value }) => {
+    if (typeof value === 'string') {
+      return [value];
+    }
+    return value;
+  })
   genreIds: string[];
 
   @IsJSON()
