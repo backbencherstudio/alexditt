@@ -12,46 +12,16 @@ import { ParsedCastMember } from './interface/parse-cast.interface';
 export class MovieService {
   constructor(private prisma: PrismaService) {}
 
-  // create A Genre
-  async createAGenre(createGenreDto: CreateGenreDto) {
-    const { name } = createGenreDto;
-
-    const existingGenre = await this.prisma.genre.findUnique({
-      where: { name },
-    });
-
-    if (existingGenre) {
-      return {
-        success: false,
-        message: 'Genre already exists.',
-      };
-    }
-
-    try {
-      return await this.prisma.genre.create({
-        data: { name },
-      });
-    } catch (error) {
-      return {
-        seccess: false,
-        message: 'Failed to create genre.',
-      };
-    }
-  }
-
-  // find all genres
-  async findAllGenre() {
-    return this.prisma.genre.findMany();
-  }
-
   // create movie
   async createAMovie(
     dto: CreateMovieDto,
     parsedCast: any[],
     userId: string,
     movieThumbnailFile: Express.Multer.File,
+    movieTrailerFile: Express.Multer.File | undefined,
     videoFile: Express.Multer.File,
     castThumbnailsMap: Map<string, Express.Multer.File>,
+    directorThumbnailFile?: Express.Multer.File,
   ) {
     try {
       const movieThumbnailFileName = `${StringHelper.randomString()}_${movieThumbnailFile.originalname}`;
@@ -60,11 +30,29 @@ export class MovieService {
         movieThumbnailFile.buffer,
       );
 
+      let movieTrailerName: string | null = null;
+      if (movieTrailerFile) {
+        movieTrailerName = `${StringHelper.randomString()}_${movieTrailerFile.originalname}`;
+        await SojebStorage.put(
+          `${appConfig().storageUrl.movie}/${movieTrailerName}`,
+          movieTrailerFile.buffer,
+        );
+      }
+
       const videoFileName = `${StringHelper.randomString()}_${videoFile.originalname}`;
       await SojebStorage.put(
         `${appConfig().storageUrl.movie}/${videoFileName}`,
         videoFile.buffer,
       );
+
+      let directorThumbnailFileName: string | null = null;
+      if (directorThumbnailFile) {
+        directorThumbnailFileName = `${StringHelper.randomString()}_${directorThumbnailFile.originalname}`;
+        await SojebStorage.put(
+          `${appConfig().storageUrl.movie_director}/${directorThumbnailFileName}`,
+          directorThumbnailFile.buffer,
+        );
+      }
 
       const uploadedCastThumbnails = new Map<string, string>();
       for (const [key, file] of castThumbnailsMap.entries()) {
@@ -77,8 +65,6 @@ export class MovieService {
       }
 
       return await this.prisma.$transaction(async (tx) => {
-        const genreConnect = dto.genreIds.map((id) => ({ id }));
-
         const castCreateData = parsedCast.map((castMember) => {
           const thumbnailFileName = uploadedCastThumbnails.get(castMember.key);
 
@@ -95,26 +81,27 @@ export class MovieService {
             description: dto.description,
             release_date: dto.release_date,
             duration: dto.duration,
+            director_name: dto.director_name,
+            director_thumbnail: directorThumbnailFileName,
             movie_thumbnail: movieThumbnailFileName,
+            movie_trailer: movieTrailerName,
             video: videoFileName,
+            status: dto.status,
+            categories: dto.categories,
+            genres: dto.genres,
             user: {
               connect: { id: userId },
-            },
-            genres: {
-              connect: genreConnect,
             },
             casts: {
               create: castCreateData,
             },
           },
-          include: {
-            genres: true,
-            casts: true,
-            user: true,
-          },
         });
 
-        return movie;
+        return {
+          success: true,
+          message: 'Movie created successfully.',
+        };
       });
     } catch (error) {
       console.error(error);
