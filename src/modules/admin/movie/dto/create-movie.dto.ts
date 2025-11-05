@@ -1,11 +1,13 @@
 import { Transform, Type } from 'class-transformer';
+import { Status, Category, Genre } from '@prisma/client';
 import {
   IsString,
   IsNotEmpty,
   IsDate,
-  IsInt,
   IsArray,
   IsJSON,
+  IsEnum,
+  IsOptional,
 } from 'class-validator';
 
 export class CreateMovieDto {
@@ -17,6 +19,32 @@ export class CreateMovieDto {
   @IsNotEmpty()
   description: string;
 
+  @IsEnum(Status)
+  @IsOptional()
+  status?: Status;
+
+  @IsArray()
+  @IsEnum(Category, { each: true })
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (typeof value === 'string') return [value];
+    return value;
+  })
+  categories?: Category[];
+
+  @IsArray()
+  @IsEnum(Genre, { each: true })
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (typeof value === 'string') return [value];
+    return value;
+  })
+  genres?: Genre[];
+
+  @IsString()
+  @IsOptional()
+  director_name?: string;
+
   @Type(() => Date)
   @IsDate()
   release_date: Date;
@@ -24,15 +52,6 @@ export class CreateMovieDto {
   @IsString()
   @IsNotEmpty()
   duration: string;
-
-  @IsArray()
-  @Transform(({ value }) => {
-    if (typeof value === 'string') {
-      return [value];
-    }
-    return value;
-  })
-  genreIds: string[];
 
   @IsJSON()
   @IsNotEmpty()

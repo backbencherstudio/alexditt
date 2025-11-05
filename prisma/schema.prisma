@@ -83,6 +83,7 @@ model User {
   role_users           RoleUser[]
   payment_transactions PaymentTransaction[]
   Movie                Movie[]
+  series               Series[]
 
   @@map("users")
 }
@@ -438,16 +439,66 @@ model UserSetting {
 
 // NEW: Media Management Models
 
-model Genre {
-  id   String @id @default(cuid())
-  name String @unique
+// model Genre {
+//   id   String @id @default(cuid())
+//   name String @unique
 
-  created_at DateTime @default(now())
-  updated_at DateTime @default(now())
-  movies     Movie[]
-  // series     Series[]
+//   created_at DateTime @default(now())
+//   updated_at DateTime @default(now())
+//   movies     Movie[]
+//   series     Series[]
 
-  @@map("genres")
+//   @@map("genres")
+// }
+
+enum Status {
+  LIVE        @map("Live")
+  PUBLISHED   @map("Published")
+  UNPUBLISHED @map("Unpublished")
+  DRAFT       @map("Draft")
+}
+
+enum Category {
+  Series
+  Movie
+  K_Drama
+  Animation
+  Tv_Show
+  Short_Film
+  Sports
+  New_Release
+  Trending_Now
+  Award_Winning
+  Classics
+}
+
+enum Genre {
+  Action
+  Adventure
+  Animation
+  Biography
+  Comedy
+  Crime
+  Documentary
+  Drama
+  Family
+  Fantasy
+  Historical
+  Horror
+  Music
+  Mystery
+  News
+  Reality
+  Romance
+  Sci_Fi
+  Thriller
+  War
+  Western
+  Sports
+  Music_Video
+  Talk_Show
+  Short_Film
+  Game_Show
 }
 
 model Cast {
@@ -464,21 +515,30 @@ model Cast {
   movie_id String?
   movie    Movie?  @relation(fields: [movie_id], references: [id])
 
+  series_id String?
+  series    Series? @relation(fields: [series_id], references: [id])
+
   @@map("casts")
 }
 
 model Movie {
-  id           String   @id @default(cuid())
-  title        String
-  description  String   @db.Text
-  release_date DateTime
-  duration     String // Duration in minutes
-
+  id              String     @id @default(cuid())
+  title           String
+  description     String?    @db.Text
+  release_date    DateTime?
+  duration        String
+  status          Status     @default(DRAFT)
+  categories      Category[]
+  genres          Genre[]
   movie_thumbnail String
+  movie_trailer   String?
   video           String
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  director_name      String?
+  director_thumbnail String?
+
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now())
 
   // Relation to the user who uploaded the movie
   user_id String?
@@ -486,7 +546,72 @@ model Movie {
 
   casts Cast[]
 
-  genres Genre[]
-
   @@map("movies")
+}
+
+model Series {
+  id           String    @id @default(cuid())
+  title        String
+  description  String?   @db.Text
+  release_date DateTime?
+
+  series_thumbnail   String
+  series_trailer     String?
+  director_name      String?
+  director_thumbnail String?
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  status     Status     @default(DRAFT)
+  categories Category[]
+  genres     Genre[]
+  // Relation to the user who uploaded the series
+  user_id    String?
+  publisher  User?      @relation(fields: [user_id], references: [id])
+
+  seasons  Season[]
+  casts    Cast[]
+  episodes Episode[]
+
+  @@map("series")
+}
+
+model Season {
+  id               String    @id @default(cuid())
+  title            String?
+  release_date     DateTime?
+  season_thumbnail String?
+
+  series_id String
+  series    Series @relation(fields: [series_id], references: [id], onDelete: Cascade)
+
+  episodes Episode[]
+
+  @@unique([series_id, id])
+  @@map("seasons")
+}
+
+model Episode {
+  id             String    @id @default(cuid())
+  episode_number Int
+  title          String
+  description    String?   @db.Text
+  duration       Int
+  release_date   DateTime?
+
+  episode_thumbnails String?
+  episode_videos     String
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  season_id String?
+  season    Season? @relation(fields: [season_id], references: [id], onDelete: Cascade)
+
+  series_id String?
+  series    Series? @relation(fields: [series_id], references: [id], onDelete: Cascade)
+
+  @@unique([series_id, episode_number])
+  @@map("episodes")
 }

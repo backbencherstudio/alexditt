@@ -87,8 +87,15 @@ export default () => ({
     avatar: '/avatar',
     websiteInfo: '/website-info',
     // movie
-    movie: '/movie',
-    cast: '/cast',
+    movie: '/movie/data',
+    cast: '/movie/cast',
+    movie_director: '/movie/director',
+    // series
+    series: '/series/data',
+    season: '/series/season',
+    episode: '/series/episode',
+    series_director: '/series/director',
+    // user
     // chat
     attachment: '/attachment',
   },

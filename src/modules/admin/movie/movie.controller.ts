@@ -23,50 +23,21 @@ import {
 import { memoryStorage } from 'multer';
 import { ParsedCastMember } from './interface/parse-cast.interface';
 import { JwtAuthGuard } from 'src/modules/auth/guards/jwt-auth.guard';
-import { ApiBearerAuth } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { RolesGuard } from 'src/common/guard/role/roles.guard';
+import { Role } from 'src/common/guard/role/role.enum';
+import { Roles } from 'src/common/guard/role/roles.decorator';
 
-@Controller('movie')
+@ApiBearerAuth()
+@ApiTags('Admin/Movie')
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(Role.ADMIN)
+@Controller('admin/movie')
 export class MovieController {
   constructor(private readonly movieService: MovieService) {}
 
-  // create Genre
-  @Post('genre')
-  async createAGenre(@Body() createGenreDto: CreateGenreDto) {
-    try {
-      const createAGenre = await this.movieService.createAGenre(createGenreDto);
-      return {
-        success: true,
-        data: createAGenre,
-      };
-    } catch (error) {
-      return {
-        success: false,
-        message: 'Failed to create genre.',
-      };
-    }
-  }
-
-  // get all genres
-  @Get('all/genre')
-  async findAllGenre() {
-    try {
-      const genres = await this.movieService.findAllGenre();
-      return {
-        success: true,
-        data: genres,
-      };
-    } catch (error) {
-      return {
-        success: false,
-        message: 'Failed to fetch genres.',
-      };
-    }
-  }
-
   // create a movie
   @Post('create')
-  @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard)
   @UseInterceptors(AnyFilesInterceptor())
   async createAMovie(
     @Body() createMovieDto: CreateMovieDto,
@@ -90,6 +61,12 @@ export class MovieController {
         (file) => file.fieldname === 'movie_thumbnail',
       );
       const videoFiles = files.filter((file) => file.fieldname === 'video');
+      const directorThumbnailFile = files.find(
+        (f) => f.fieldname === 'director_thumbnail',
+      );
+      const movieTrailerFile = files.find(
+        (f) => f.fieldname === 'movie_trailer',
+      );
       const castThumbnailFiles = files.filter((file) =>
         file.fieldname.startsWith('cast_'),
       );
@@ -165,13 +142,12 @@ export class MovieController {
         parsedCast,
         userId,
         movieThumbnailFile,
+        movieTrailerFile,
         videoFile,
         castThumbnailsMap,
+        directorThumbnailFile,
       );
-      return {
-        success: true,
-        data: createAMovie,
-      };
+      return createAMovie;
     } catch (error) {
       return {
         success: false,
@@ -179,6 +155,8 @@ export class MovieController {
       };
     }
   }
+
+  // create a session
 
   @Get(':id')
   findOne(@Param('id') id: string) {
