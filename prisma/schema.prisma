@@ -533,6 +533,7 @@ model Movie {
   movie_thumbnail String
   movie_trailer   String?
   video           String
+  views           Int?       @default(0)
 
   director_name      String?
   director_thumbnail String?
@@ -560,6 +561,8 @@ model Series {
   director_name      String?
   director_thumbnail String?
 
+  views Int? @default(0)
+
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
@@ -582,6 +585,8 @@ model Season {
   title            String?
   release_date     DateTime?
   season_thumbnail String?
+  created_at       DateTime  @default(now())
+  updated_at       DateTime  @updatedAt
 
   series_id String
   series    Series @relation(fields: [series_id], references: [id], onDelete: Cascade)

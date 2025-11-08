@@ -5,6 +5,8 @@ import {
   IsDateString,
   IsArray,
   IsEnum,
+  ArrayNotEmpty,
+  IsDefined,
 } from 'class-validator';
 import { Transform } from 'class-transformer';
 import { Category, Genre, Status } from '@prisma/client';
@@ -32,13 +34,13 @@ export class CreateSeriesDto {
 
   @IsArray()
   @IsEnum(Category, { each: true })
-  @IsOptional()
+  @ArrayNotEmpty({ message: 'At least one category is required.' })
+  @IsDefined({ message: 'Categories field is required.' })
   @Transform(({ value }) => (typeof value === 'string' ? [value] : value))
-  categories?: Category[];
+  categories: Category[];
 
   @IsArray()
   @IsEnum(Genre, { each: true })
-  @IsOptional()
   @Transform(({ value }) => (typeof value === 'string' ? [value] : value))
   genres?: Genre[];
 

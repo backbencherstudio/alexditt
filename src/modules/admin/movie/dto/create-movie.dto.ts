@@ -25,12 +25,11 @@ export class CreateMovieDto {
 
   @IsArray()
   @IsEnum(Category, { each: true })
-  @IsOptional()
   @Transform(({ value }) => {
     if (typeof value === 'string') return [value];
     return value;
   })
-  categories?: Category[];
+  categories: Category[];
 
   @IsArray()
   @IsEnum(Genre, { each: true })
