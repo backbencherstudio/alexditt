@@ -110,6 +110,7 @@ export class SeriesService {
           data: {
             title: dto.title,
             description: dto.description,
+            kids_mode: dto.kids_mode,
             release_date: dto.release_date,
             status: dto.status,
             categories: dto.categories,

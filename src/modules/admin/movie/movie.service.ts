@@ -79,6 +79,7 @@ export class MovieService {
           data: {
             title: dto.title,
             description: dto.description,
+            kids_mode: dto.kids_mode,
             release_date: dto.release_date,
             duration: dto.duration,
             director_name: dto.director_name,

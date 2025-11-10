@@ -7,6 +7,7 @@ import {
   IsEnum,
   ArrayNotEmpty,
   IsDefined,
+  IsBoolean,
 } from 'class-validator';
 import { Transform } from 'class-transformer';
 import { Category, Genre, Status } from '@prisma/client';
@@ -31,6 +32,10 @@ export class CreateSeriesDto {
   @IsString()
   @IsOptional()
   director_name?: string;
+
+  @Transform(({ value }) => value === 'true' || value === true)
+  @IsBoolean({ message: 'Kids mode must be a boolean value (true or false).' })
+  kids_mode: boolean;
 
   @IsArray()
   @IsEnum(Category, { each: true })
