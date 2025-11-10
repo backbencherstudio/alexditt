@@ -8,6 +8,7 @@ import {
   IsJSON,
   IsEnum,
   IsOptional,
+  IsBoolean,
 } from 'class-validator';
 
 export class CreateMovieDto {
@@ -30,6 +31,10 @@ export class CreateMovieDto {
     return value;
   })
   categories: Category[];
+
+  @Transform(({ value }) => value === 'true' || value === true)
+  @IsBoolean({ message: 'Kids mode must be a boolean value (true or false).' })
+  kids_mode: boolean;
 
   @IsArray()
   @IsEnum(Genre, { each: true })

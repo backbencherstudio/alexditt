@@ -84,6 +84,7 @@ model User {
   payment_transactions PaymentTransaction[]
   Movie                Movie[]
   series               Series[]
+  likeComents          LikeComents[]
 
   @@map("users")
 }
@@ -404,14 +405,49 @@ model Setting {
   @@map("settings")
 }
 
+model LikeComents {
+  id         String    @id @default(cuid())
+  created_at DateTime  @default(now())
+  updated_at DateTime  @default(now())
+  deleted_at DateTime?
+
+  is_like      Boolean? @default(false)
+  is_dislike   Boolean? @default(false)
+  is_favorite  Boolean? @default(false)
+  is_saved     Boolean? @default(false)
+  is_comment   Boolean? @default(false)
+  comment_text String?
+
+  user_id String?
+  user    User?   @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  movie_id String?
+  movie    Movie?  @relation(fields: [movie_id], references: [id], onDelete: Cascade)
+
+  series_id String?
+  series    Series? @relation(fields: [series_id], references: [id], onDelete: Cascade)
+
+  @@map("like_comments")
+}
+
 model UserSetting {
   id         String    @id @default(cuid())
   created_at DateTime  @default(now())
   updated_at DateTime  @default(now())
   deleted_at DateTime?
 
+  // some setings for this app
+  kids_mode             Boolean? @default(false)
+  auto_play             Boolean? @default(true)
+  lang_english          Boolean? @default(true)
+  lang_german           Boolean? @default(false)
+  lang_polish           Boolean? @default(false)
+  general_notifications Boolean? @default(true)
+  new_release_movies    Boolean? @default(true)
+  app_updates           Boolean? @default(true)
+
   user_id String?
-  user    User?   @relation(fields: [user_id], references: [id])
+  user    User?   @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   setting_id String?
   setting    Setting? @relation(fields: [setting_id], references: [id])
@@ -420,36 +456,6 @@ model UserSetting {
 
   @@map("user_settings")
 }
-
-// this table stores example
-// model Note {
-//   id                String  @id @default(cuid())
-//   created_at DateTime  @default(now())
-//   updated_at DateTime  @default(now())
-//   deleted_at DateTime?
-//   status     Int?      @default(1) @db.SmallInt
-
-//   title String?
-//   body  String? @db.Text
-
-//   tenant_id Int?
-//   tenant    Organization? @relation(fields: [tenant_id], references: [id], onDelete: Cascade)
-//   @@map("posts")
-// }
-
-// NEW: Media Management Models
-
-// model Genre {
-//   id   String @id @default(cuid())
-//   name String @unique
-
-//   created_at DateTime @default(now())
-//   updated_at DateTime @default(now())
-//   movies     Movie[]
-//   series     Series[]
-
-//   @@map("genres")
-// }
 
 enum Status {
   LIVE        @map("Live")
@@ -527,13 +533,15 @@ model Movie {
   description     String?    @db.Text
   release_date    DateTime?
   duration        String
-  status          Status     @default(DRAFT)
+  status          Status     @default(PUBLISHED)
   categories      Category[]
   genres          Genre[]
   movie_thumbnail String
   movie_trailer   String?
   video           String
   views           Int?       @default(0)
+
+  kids_mode Boolean? @default(false)
 
   director_name      String?
   director_thumbnail String?
@@ -545,7 +553,8 @@ model Movie {
   user_id String?
   user    User?   @relation(fields: [user_id], references: [id])
 
-  casts Cast[]
+  casts       Cast[]
+  likeComents LikeComents[]
 
   @@map("movies")
 }
@@ -561,21 +570,24 @@ model Series {
   director_name      String?
   director_thumbnail String?
 
+  kids_mode Boolean? @default(false)
+
   views Int? @default(0)
 
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
-  status     Status     @default(DRAFT)
+  status     Status     @default(PUBLISHED)
   categories Category[]
   genres     Genre[]
   // Relation to the user who uploaded the series
   user_id    String?
   publisher  User?      @relation(fields: [user_id], references: [id])
 
-  seasons  Season[]
-  casts    Cast[]
-  episodes Episode[]
+  seasons     Season[]
+  casts       Cast[]
+  episodes    Episode[]
+  likeComents LikeComents[]
 
   @@map("series")
 }
