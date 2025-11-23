@@ -478,6 +478,26 @@ enum Category {
   Classics
 }
 
+
+enum category_status {
+  ACTIVE
+  INACTIVE
+}
+
+model CategoryModel {
+  id         String    @id @default(cuid())
+  created_at DateTime  @default(now())
+  updated_at DateTime  @default(now())
+  deleted_at DateTime?
+
+  category_name        String?
+  category_description String?
+  category_status      category_status @default(ACTIVE)
+
+  @@map("categories")
+}
+
+
 enum Genre {
   Action
   Adventure

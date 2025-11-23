@@ -7,6 +7,7 @@ import { UserModule } from './user/user.module';
 import { NotificationModule } from './notification/notification.module';
 import { MovieModule } from './movie/movie.module';
 import { SeriesModule } from './series/series.module';
+import { CategoryModule } from './category/category.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { SeriesModule } from './series/series.module';
     NotificationModule,
     MovieModule,
     SeriesModule,
+    CategoryModule,
   ],
 })
 export class AdminModule {}
