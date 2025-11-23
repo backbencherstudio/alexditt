@@ -37,18 +37,25 @@ export class MediaService {
   // Find media by category
   async findMediaByCategory(
     userId: string,
-    category: Category,
+    categoryId: string, // Changed from Enum to String (ID)
     options: PaginationOptions,
   ) {
     try {
       const { page, limit } = options;
       const skip = (page - 1) * limit;
 
-      //check kids mode
+      // Check kids mode (Assuming this returns a Prisma.sql fragment)
       const kidsModeFilter = await this.getKidsModeFilter(userId);
 
-      const baseWhere = Prisma.sql`WHERE status = 'Published'::"Status" AND categories @> ARRAY[${category}]::"Category"[] ${kidsModeFilter}`;
+      // UPDATED WHERE CLAUSE:
+      // Using category_id instead of Enum Array check
+      const baseWhere = Prisma.sql`
+        WHERE status = 'Published'::"Status" 
+        AND category_id = ${categoryId} 
+        ${kidsModeFilter}
+      `;
 
+      // Count Query (Combining both tables)
       const countQuery = Prisma.sql`
         SELECT COUNT(*) FROM (
           SELECT 1 FROM "movies" ${baseWhere}
@@ -57,6 +64,7 @@ export class MediaService {
         ) AS total_count;
       `;
 
+      // Data Query (Fetching combined data)
       const dataQuery = Prisma.sql`
         SELECT id, title, description, "movie_thumbnail" AS thumbnail, created_at, duration, 'movie' AS type
         FROM "movies" ${baseWhere}
@@ -67,16 +75,20 @@ export class MediaService {
         LIMIT ${limit} OFFSET ${skip}
       `;
 
+      // Execute transaction
       const [totalResult, results]: [any[], any[]] =
         await this.prisma.$transaction([
           this.prisma.$queryRaw(countQuery),
           this.prisma.$queryRaw(dataQuery),
         ]);
 
-      const totalItems = Number(totalResult[0].count);
+      // Pagination Logic
+      const totalItems = totalResult[0] ? Number(totalResult[0].count) : 0;
       const totalPages = Math.ceil(totalItems / limit);
 
       const config = appConfig();
+
+      // Format Data (Thumbnail Handling)
       const formattedMedia = results.map((item) => {
         let thumbnailUrl = null;
         if (item.thumbnail) {
@@ -84,9 +96,12 @@ export class MediaService {
             item.type === 'movie'
               ? config.storageUrl.movie
               : config.storageUrl.series;
+
+          // Assuming SojebStorage generates the full URL
           const thumbnailPath = `${storagePath}/${item.thumbnail}`;
           thumbnailUrl = SojebStorage.url(thumbnailPath);
         }
+
         return {
           id: item.id,
           title: item.title,

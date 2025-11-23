@@ -20,7 +20,7 @@ export class CategoryService {
       throw new BadRequestException('Category name is required.');
     }
 
-    const isExist = await this.prisma.categoryModel.findFirst({
+    const isExist = await this.prisma.category.findFirst({
       where: {
         category_name: category_name,
       },
@@ -30,7 +30,7 @@ export class CategoryService {
       throw new BadRequestException('Category name already exists.');
     }
 
-    const newCategory = await this.prisma.categoryModel.create({
+    const newCategory = await this.prisma.category.create({
       data: {
         category_name,
         category_description,
@@ -45,7 +45,7 @@ export class CategoryService {
 
   //* Fetch all categories
   async findAll() {
-    const categories = await this.prisma.categoryModel.findMany();
+    const categories = await this.prisma.category.findMany();
 
     return {
       message: 'Categories fetched successfully',
@@ -57,7 +57,7 @@ export class CategoryService {
 
   // * Fetch a category by ID
   async findOne(id: string) {
-    const category = await this.prisma.categoryModel.findUnique({
+    const category = await this.prisma.category.findUnique({
       where: { id },
     });
 
@@ -74,13 +74,13 @@ export class CategoryService {
   // * Update a category by ID
   async update(id: string, updateCategoryDto: UpdateCategoryDto) {
     const { category_name, category_description } = updateCategoryDto;
-    const category = await this.prisma.categoryModel.findUnique({
+    const category = await this.prisma.category.findUnique({
       where: { id },
     });
     if (!category) {
       throw new NotFoundException('Category not found');
     }
-    const updatedCategory = await this.prisma.categoryModel.update({
+    const updatedCategory = await this.prisma.category.update({
       where: { id },
       data: {
         category_name,
@@ -98,7 +98,7 @@ export class CategoryService {
   async updateActiveStatus(id: string, updateStatusDto: UpdateStatusDto) {
     const { status } = updateStatusDto;
 
-    const category = await this.prisma.categoryModel.findUnique({
+    const category = await this.prisma.category.findUnique({
       where: { id },
     });
 
@@ -106,10 +106,10 @@ export class CategoryService {
       throw new NotFoundException('Category not found');
     }
 
-    const updatedCategory = await this.prisma.categoryModel.update({
+    const updatedCategory = await this.prisma.category.update({
       where: { id },
       data: {
-        category_status: status, 
+        category_status: status,
       },
     });
 
@@ -121,13 +121,13 @@ export class CategoryService {
 
   // * Delete a category by ID
   async remove(id: string) {
-    const category = await this.prisma.categoryModel.findUnique({
+    const category = await this.prisma.category.findUnique({
       where: { id },
     });
     if (!category) {
       throw new NotFoundException('Category not found');
     }
-    await this.prisma.categoryModel.delete({
+    await this.prisma.category.delete({
       where: { id },
     });
 
@@ -135,6 +135,4 @@ export class CategoryService {
       message: 'Category deleted successfully',
     };
   }
-
-  
 }

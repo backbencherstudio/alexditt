@@ -82,7 +82,7 @@ export class MediaController {
   }
 
   // Get media by category
-  @Get('category/:category')
+  @Get('category/:id')
   @ApiQuery({
     name: 'page',
     required: false,
@@ -96,8 +96,8 @@ export class MediaController {
     description: 'Items per page',
   })
   async getMediaByCategory(
-    @Req() req,
-    @Param('category', new ParseEnumPipe(Category)) category: Category,
+    @Req() req: any,
+    @Param('id') id: string,
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
     @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
   ) {
@@ -109,7 +109,7 @@ export class MediaController {
           message: 'Page and limit must be positive numbers.',
         };
       }
-      return this.mediaService.findMediaByCategory(userId, category, {
+      return this.mediaService.findMediaByCategory(userId, id, {
         page,
         limit,
       });

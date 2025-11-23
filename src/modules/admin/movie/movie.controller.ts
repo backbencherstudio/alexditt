@@ -149,14 +149,13 @@ export class MovieController {
       );
       return createAMovie;
     } catch (error) {
+      console.error(error);
       return {
         success: false,
         message: 'Failed to create movie.',
       };
     }
   }
-
-  // create a session
 
   @Get(':id')
   findOne(@Param('id') id: string) {

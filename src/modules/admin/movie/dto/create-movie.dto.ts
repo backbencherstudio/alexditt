@@ -24,13 +24,9 @@ export class CreateMovieDto {
   @IsOptional()
   status?: Status;
 
-  @IsArray()
-  @IsEnum(Category, { each: true })
-  @Transform(({ value }) => {
-    if (typeof value === 'string') return [value];
-    return value;
-  })
-  categories: Category[];
+  @IsString()
+  @IsNotEmpty({ message: 'Category ID is required' })
+  category_id: string;
 
   @Transform(({ value }) => value === 'true' || value === true)
   @IsBoolean({ message: 'Kids mode must be a boolean value (true or false).' })

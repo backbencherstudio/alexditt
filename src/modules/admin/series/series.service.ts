@@ -37,6 +37,7 @@ export class SeriesService {
         };
       }
 
+      // --- File Upload Logic (Unchanged) ---
       const seriesThumbnailName = `${StringHelper.randomString()}_${seriesThumbnailFile.originalname}`;
       await SojebStorage.put(
         `${appConfig().storageUrl.series}/${seriesThumbnailName}`,
@@ -104,6 +105,7 @@ export class SeriesService {
         }
         uploadedEpisodeFiles.set(key, uploadedPair);
       }
+      // --- End File Upload Logic ---
 
       return await this.prisma.$transaction(async (tx) => {
         const createdSeries = await tx.series.create({
@@ -113,7 +115,17 @@ export class SeriesService {
             kids_mode: dto.kids_mode,
             release_date: dto.release_date,
             status: dto.status,
-            categories: dto.categories,
+
+            // --- FIX START ---
+            // Replaced 'categories' array with 'category' relation connection
+            // Ensure schema field name is 'category' (or 'categorie' if you kept the typo)
+            category: {
+              connect: {
+                id: dto.category_id,
+              },
+            },
+            // --- FIX END ---
+
             genres: dto.genres,
             series_thumbnail: seriesThumbnailName,
             series_trailer: seriesTrailerName,
@@ -147,10 +159,10 @@ export class SeriesService {
         for (const episode of parsedEpisodes) {
           const files = uploadedEpisodeFiles.get(episode.key);
           if (!files?.video) {
-            return {
-              success: false,
-              message: `Video file for episode key "${episode.key}" is missing.`,
-            };
+            // Note: In transaction, throwing error will rollback everything
+            throw new Error(
+              `Video file for episode key "${episode.key}" is missing.`,
+            );
           }
 
           await tx.episode.create({
@@ -178,7 +190,9 @@ export class SeriesService {
       console.error('Failed to create series:', error);
       return {
         success: false,
-        message: 'An unexpected error occurred while creating the series.',
+        message:
+          error.message ||
+          'An unexpected error occurred while creating the series.',
       };
     }
   }

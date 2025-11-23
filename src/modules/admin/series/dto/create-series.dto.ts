@@ -37,12 +37,9 @@ export class CreateSeriesDto {
   @IsBoolean({ message: 'Kids mode must be a boolean value (true or false).' })
   kids_mode: boolean;
 
-  @IsArray()
-  @IsEnum(Category, { each: true })
-  @ArrayNotEmpty({ message: 'At least one category is required.' })
-  @IsDefined({ message: 'Categories field is required.' })
-  @Transform(({ value }) => (typeof value === 'string' ? [value] : value))
-  categories: Category[];
+  @IsString()
+  @IsNotEmpty({ message: 'Category ID is required' })
+  category_id: string;
 
   @IsArray()
   @IsEnum(Genre, { each: true })

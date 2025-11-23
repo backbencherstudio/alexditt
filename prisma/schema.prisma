@@ -464,27 +464,12 @@ enum Status {
   DRAFT       @map("Draft")
 }
 
-enum Category {
-  Series
-  Movie
-  K_Drama
-  Animation
-  Tv_Show
-  Short_Film
-  Sports
-  New_Release
-  Trending_Now
-  Award_Winning
-  Classics
-}
-
-
 enum category_status {
   ACTIVE
   INACTIVE
 }
 
-model CategoryModel {
+model Category {
   id         String    @id @default(cuid())
   created_at DateTime  @default(now())
   updated_at DateTime  @default(now())
@@ -493,10 +478,11 @@ model CategoryModel {
   category_name        String?
   category_description String?
   category_status      category_status @default(ACTIVE)
+  movies               Movie[]
+  series               Series[]
 
   @@map("categories")
 }
-
 
 enum Genre {
   Action
@@ -548,18 +534,19 @@ model Cast {
 }
 
 model Movie {
-  id              String     @id @default(cuid())
-  title           String
-  description     String?    @db.Text
-  release_date    DateTime?
-  duration        String
-  status          Status     @default(PUBLISHED)
-  categories      Category[]
+  id           String    @id @default(cuid())
+  title        String
+  description  String?   @db.Text
+  release_date DateTime?
+  duration     String
+  status       Status    @default(PUBLISHED)
+  category_id  String?
+
   genres          Genre[]
   movie_thumbnail String
   movie_trailer   String?
   video           String
-  views           Int?       @default(0)
+  views           Int?    @default(0)
 
   kids_mode Boolean? @default(false)
 
@@ -570,8 +557,9 @@ model Movie {
   updated_at DateTime @default(now())
 
   // Relation to the user who uploaded the movie
-  user_id String?
-  user    User?   @relation(fields: [user_id], references: [id])
+  user_id  String?
+  user     User?     @relation(fields: [user_id], references: [id])
+  category Category? @relation(fields: [category_id], references: [id])
 
   casts       Cast[]
   likeComents LikeComents[]
@@ -597,12 +585,14 @@ model Series {
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
-  status     Status     @default(PUBLISHED)
-  categories Category[]
-  genres     Genre[]
+  status      Status  @default(PUBLISHED)
+  category_id String?
+
+  genres    Genre[]
   // Relation to the user who uploaded the series
-  user_id    String?
-  publisher  User?      @relation(fields: [user_id], references: [id])
+  user_id   String?
+  publisher User?     @relation(fields: [user_id], references: [id])
+  category  Category? @relation(fields: [category_id], references: [id])
 
   seasons     Season[]
   casts       Cast[]

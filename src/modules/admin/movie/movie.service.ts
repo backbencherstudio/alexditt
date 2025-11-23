@@ -88,7 +88,13 @@ export class MovieService {
             movie_trailer: movieTrailerName,
             video: videoFileName,
             status: dto.status,
-            categories: dto.categories,
+
+            category: {
+              connect: {
+                id: dto.category_id,
+              },
+            },
+
             genres: dto.genres,
             user: {
               connect: { id: userId },
