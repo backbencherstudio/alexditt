@@ -74,6 +74,13 @@ export default () => ({
     },
   },
 
+  iptv: {
+    baseUrl: process.env.IPTV_URL,
+    serverUrl: process.env.IPTV_SERVER_URL,
+    username: process.env.IPTV_USERNAME,
+    password: process.env.IPTV_PASSWORD,
+  },
+
   /**
    * Storage directory
    */
