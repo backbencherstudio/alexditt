@@ -7,16 +7,5 @@ import { ApiTags } from '@nestjs/swagger';
 export class UserController {
   constructor(private readonly userService: UserService) {}
 
-  @Get()
-  async findAll() {
-    try {
-      const users = await this.userService.findAll();
-      return users;
-    } catch (error) {
-      return {
-        success: false,
-        message: error.message,
-      };
-    }
-  }
+ 
 }

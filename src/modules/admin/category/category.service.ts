@@ -48,6 +48,7 @@ export class CategoryService {
     const categories = await this.prisma.category.findMany();
 
     return {
+      success: true,
       message: 'Categories fetched successfully',
       data: {
         categories,
@@ -94,7 +95,26 @@ export class CategoryService {
     };
   }
 
-  // admin update active status of category
+  // * Delete a category by ID
+  async remove(id: string) {
+    const category = await this.prisma.category.findUnique({
+      where: { id },
+    });
+    if (!category) {
+      throw new NotFoundException('Category not found');
+    }
+    await this.prisma.category.delete({
+      where: { id },
+    });
+
+    return {
+      message: 'Category deleted successfully',
+    };
+  }
+
+  // admin ==========================================
+
+  //* status update
   async updateActiveStatus(id: string, updateStatusDto: UpdateStatusDto) {
     const { status } = updateStatusDto;
 
@@ -119,20 +139,48 @@ export class CategoryService {
     };
   }
 
-  // * Delete a category by ID
-  async remove(id: string) {
-    const category = await this.prisma.category.findUnique({
-      where: { id },
+
+  //  * category with movie, series count
+  async getCategoryWithContentCount() {
+    const categoriesWithCount = await this.prisma.category.findMany({
+      select: {
+        id: true,
+        category_name: true,
+        category_description: true,
+        category_status: true,
+        _count: {
+          select: {
+            movies: true,
+            series: true,
+          },
+        },
+      },
     });
-    if (!category) {
-      throw new NotFoundException('Category not found');
-    }
-    await this.prisma.category.delete({
-      where: { id },
+
+    // Map the results to flatten the content count for the frontend
+    const categories = categoriesWithCount.map((cat) => {
+      const contentCount = cat._count.movies + cat._count.series;
+      
+      const { _count, ...categoryData } = cat;
+
+      return {
+        ...categoryData,
+        contentCount, 
+      };
     });
 
     return {
-      message: 'Category deleted successfully',
+      message: 'Categories fetched successfully',
+      data: {
+        categories,
+      },
     };
   }
+
+
+
+
+
+
+
 }
