@@ -8,6 +8,7 @@ import { NotificationModule } from './notification/notification.module';
 import { MovieModule } from './movie/movie.module';
 import { SeriesModule } from './series/series.module';
 import { CategoryModule } from './category/category.module';
+import { DashboradModule } from './dashborad/dashborad.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { CategoryModule } from './category/category.module';
     MovieModule,
     SeriesModule,
     CategoryModule,
+    DashboradModule,
   ],
 })
 export class AdminModule {}

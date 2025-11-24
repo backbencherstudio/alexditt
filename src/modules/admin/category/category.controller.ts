@@ -50,9 +50,16 @@ export class CategoryController {
     return this.categoryService.update(id, updateCategoryDto);
   }
 
-  // admin update active status of category
+  // * Delete a category by ID
+  @Delete(':id')
+  remove(@Param('id') id: string) {
+    return this.categoryService.remove(id);
+  }
 
-  @Patch('status/:id')
+  //admin part==================================================
+
+  //* status update
+  @Patch('admin/status/:id')
   updateActiveStatus(
     @Param('id') id: string,
     @Body() updateStatusDto: UpdateStatusDto,
@@ -60,9 +67,19 @@ export class CategoryController {
     return this.categoryService.updateActiveStatus(id, updateStatusDto);
   }
 
-  // * Delete a category by ID
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.categoryService.remove(id);
+
+  //  * category with movie, series count
+  @Get('admin/category-with-count')
+  async getCategoryWithContentCount() {
+    return this.categoryService.getCategoryWithContentCount();
   }
+
+
+
+
+
+
+
+
+
 }

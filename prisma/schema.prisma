@@ -31,12 +31,17 @@ model Account {
   @@map("accounts")
 }
 
+enum StatusType {
+  ACTIVE
+  INACTIVE
+}
+
 model User {
   id         String    @id @default(cuid())
   created_at DateTime  @default(now())
   updated_at DateTime  @default(now())
   deleted_at DateTime?
-  status     Int?      @default(1) @db.SmallInt
+  status     StatusType @default(ACTIVE)
 
   approved_at  DateTime?
   availability String?
