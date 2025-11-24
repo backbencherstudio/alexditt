@@ -82,4 +82,43 @@ export class StreamController {
       };
     }
   }
+
+  @Get('movies/categories')
+  @ApiOperation({ summary: 'Get All Movie (VOD) Categories' })
+  async getMovieCategories() {
+    try {
+      const categories = await this.streamService.getMovieCategories();
+      return {
+        success: true,
+        data: categories,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: 'Failed to fetch movie categories',
+      };
+    }
+  }
+
+  @Get('movies/category/:categoryId')
+  @ApiOperation({ summary: 'Get Movies (VOD) by Category ID' })
+  @ApiParam({
+    name: 'categoryId',
+    description: 'Category ID from movie categories list',
+  })
+  async getMovies(@Param('categoryId') categoryId: string) {
+    try {
+      const movies = await this.streamService.getMoviesByCategory(categoryId);
+      return {
+        success: true,
+        count: movies.length,
+        data: movies,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: 'Failed to fetch movies',
+      };
+    }
+  }
 }
