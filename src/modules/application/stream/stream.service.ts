@@ -98,4 +98,62 @@ export class StreamService {
       );
     }
   }
+
+  /**
+   * 5. Get Movie (VOD) Categories
+   * Action: get_vod_categories
+   */
+  async getMovieCategories() {
+    try {
+      const url = `${this.baseUrl}?username=${this.username}&password=${this.password}&action=get_vod_categories`;
+
+      const response = await axios.get(url);
+      return response.data;
+    } catch (error) {
+      console.error('Movie Category Fetch Error:', error.message);
+      throw new HttpException(
+        'Failed to fetch movie categories.',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  /**
+   * 4. Get Movies by Category ID
+   * Action: get_vod_streams
+   */
+  async getMoviesByCategory(categoryId: string) {
+    try {
+      const url = `${this.baseUrl}?username=${this.username}&password=${this.password}&action=get_vod_streams&category_id=${categoryId}`;
+
+      const response = await axios.get(url);
+      const data = response.data;
+
+      if (!Array.isArray(data)) {
+        return [];
+      }
+
+      return data.map((movie) => ({
+        num: movie.num,
+        name: movie.name,
+        stream_type: movie.stream_type,
+        stream_id: movie.stream_id,
+        stream_icon: movie.stream_icon,
+        rating: movie.rating,
+        added: movie.added,
+        category_id: movie.category_id,
+        container_extension: movie.container_extension,
+
+        // Movie Play URL Generation
+        // formet: http://server/movie/user/pass/id.extension
+        play_url: `${this.serverUrl}/movie/${this.username}/${this.password}/${movie.stream_id}.${movie.container_extension}`,
+      }));
+    } catch (error) {
+      console.error(`Movie Fetch Error (Cat: ${categoryId}):`, error.message);
+      throw new HttpException(
+        'Failed to fetch movies.',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
 }
