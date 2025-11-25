@@ -49,32 +49,40 @@ export class AuthController {
     }
   }
 
-  @ApiOperation({ summary: 'Register a user' })
-  @Post('register')
-  async create(@Body() data: CreateUserDto) {
-    try {
-      const email = data.email;
-      const password = data.password;
-      const type = data?.type;
+  /*
+  // @ApiOperation({ summary: 'Register a user' })
+  // @Post('register')
+  // async create(@Body() data: CreateUserDto) {
+  //   try {
+         const name = data.name;
+  //     const email = data.email;
+  //     const password = data.password;
+         const phone_number = data.phone_number;
+         const gender = data.gender;
+         const description = data.description;
 
-      if (!email) {
-        throw new HttpException('Email not provided', HttpStatus.UNAUTHORIZED);
-      }
+  //     if (!email) {
+  //       throw new HttpException('Email not provided', HttpStatus.UNAUTHORIZED);
+  //     }
 
-      const response = await this.authService.register({
-        email: email,
-        password: password,
-        type: type,
-      });
+  //     const response = await this.authService.register({
+    //     email: email,
+    //     password: password,
+    //     name: name,
+          phone_number: phone_number;
+          gender: gender;
+          description: description;
 
-      return response;
-    } catch (error) {
-      return {
-        success: false,
-        message: error.message,
-      };
-    }
-  }
+  //     return response;
+  //   } catch (error) {
+  //     return {
+  //       success: false,
+  //       message: error.message,
+  //     };
+  //   }
+  // }
+ 
+  */
 
   // login user
   @ApiOperation({ summary: 'Login user' })

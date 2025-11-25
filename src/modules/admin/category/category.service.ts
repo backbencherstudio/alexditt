@@ -74,7 +74,7 @@ export class CategoryService {
 
   // * Update a category by ID
   async update(id: string, updateCategoryDto: UpdateCategoryDto) {
-    const { category_name, category_description } = updateCategoryDto;
+    const { category_name, category_description, status } = updateCategoryDto;
     const category = await this.prisma.category.findUnique({
       where: { id },
     });
@@ -86,6 +86,7 @@ export class CategoryService {
       data: {
         category_name,
         category_description,
+        category_status: status,
       },
     });
 
@@ -113,32 +114,6 @@ export class CategoryService {
   }
 
   // admin ==========================================
-
-  //* status update
-  async updateActiveStatus(id: string, updateStatusDto: UpdateStatusDto) {
-    const { status } = updateStatusDto;
-
-    const category = await this.prisma.category.findUnique({
-      where: { id },
-    });
-
-    if (!category) {
-      throw new NotFoundException('Category not found');
-    }
-
-    const updatedCategory = await this.prisma.category.update({
-      where: { id },
-      data: {
-        category_status: status,
-      },
-    });
-
-    return {
-      message: 'Category status updated successfully',
-      data: updatedCategory,
-    };
-  }
-
 
   //  * category with movie, series count
   async getCategoryWithContentCount() {

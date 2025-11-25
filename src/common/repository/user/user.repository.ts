@@ -192,11 +192,17 @@ export class UserRepository {
   static async createUser({
     email,
     password,
-    type = 'user',
+    name,
+    phone_number,
+    gender,
+    description,
   }: {
     email: string;
     password?: string;
-    type?: string;
+    name?: string;
+    phone_number?: string;
+    gender?: string;
+    description?: string;
   }) {
     try {
       // Check if email already exist
@@ -213,7 +219,9 @@ export class UserRepository {
       }
 
       const createdUser = await prisma.$transaction(async (tx) => {
-        const userData = { email, type };
+
+        const userData = { email, name, phone_number, gender, description };
+        
         if (password) {
           userData['password'] = await bcrypt.hash(
             password,

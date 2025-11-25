@@ -58,16 +58,6 @@ export class CategoryController {
 
   //admin part==================================================
 
-  //* status update
-  @Patch('admin/status/:id')
-  updateActiveStatus(
-    @Param('id') id: string,
-    @Body() updateStatusDto: UpdateStatusDto,
-  ) {
-    return this.categoryService.updateActiveStatus(id, updateStatusDto);
-  }
-
-
   //  * category with movie, series count
   @Get('admin/category-with-count')
   async getCategoryWithContentCount() {
