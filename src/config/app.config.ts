@@ -103,6 +103,7 @@ export default () => ({
     episode: '/series/episode',
     series_director: '/series/director',
     // user
+    profile: '/user/avater',
     // chat
     attachment: '/attachment',
   },

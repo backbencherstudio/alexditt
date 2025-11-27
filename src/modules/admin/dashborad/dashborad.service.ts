@@ -5,6 +5,8 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { PaginationDto } from 'src/common/pagination/dto/offset-pagination.dto';
 import { Genre } from '@prisma/client';
 import { ContentListDto } from './dto/content-list.dto';
+import appConfig from 'src/config/app.config';
+import { SojebStorage } from 'src/common/lib/Disk/SojebStorage';
 
 @Injectable()
 export class DashboradService {
@@ -42,7 +44,6 @@ export class DashboradService {
 
   /*--------------------------------------------------------------------------*/
 
-
   // *admin dashborad total user, videos, details
   async getDashboardData(paginationDto: PaginationDto) {
     const { page, perPage } = paginationDto;
@@ -62,6 +63,7 @@ export class DashboradService {
         this.prisma.user.findMany({
           where: whereClause,
           select: {
+            id: true,
             name: true,
             email: true,
             created_at: true,
@@ -78,6 +80,7 @@ export class DashboradService {
     const totalVideos = totalMovies + totalSeries;
 
     const formattedRecentUsers = recentUsers.map((user) => ({
+      id: user.id,
       name: user.name,
       email: user.email,
       created_at: user.created_at,
@@ -102,37 +105,30 @@ export class DashboradService {
   }
 
   // *list for the media content table (based on image)
-  async getContentList(
-    paginationDto: PaginationDto,
-    contentListDto: ContentListDto,
-  ) {
-    const { page, perPage } = paginationDto;
-    const { genre, category, status } = contentListDto;
+  async getContentList(contentListDto: ContentListDto) {
+    const { page, perPage, genres, category_id, status } = contentListDto;
 
     const skip = (page - 1) * perPage;
 
     const where: any = {};
 
-    if (genre) {
-      where.genres = {
-        has: genre,
-      };
+    // optional genre filter
+    if (genres && genres.length > 0) {
+      where.genres = { hasSome: genres };
     }
 
-    if (category) {
-      where.category = {
-        category_name: category,
-      };
+    // optional category filter
+    if (category_id) {
+      where.category_id = category_id;
     }
 
+    // optional status filter
     if (status) {
       where.status = status;
     }
 
     const [totalItems, contentList] = await Promise.all([
-     
       this.prisma.movie.count({ where }),
-
       this.prisma.movie.findMany({
         where,
         skip,
@@ -141,26 +137,24 @@ export class DashboradService {
           movie_thumbnail: true,
           title: true,
           genres: true,
-          category: {
-            select: {
-              category_name: true,
-            },
-          },
+          category: { select: { category_name: true } },
           duration: true,
           status: true,
           created_at: true,
         },
-        orderBy: {
-          created_at: 'desc',
-        },
+        orderBy: { created_at: 'desc' },
       }),
     ]);
 
     const formattedContent = contentList.map((movie) => ({
-      thumbnail: movie.movie_thumbnail,
+      thumbnail: movie.movie_thumbnail
+        ? SojebStorage.url(
+            `${appConfig().storageUrl.movie}/${movie.movie_thumbnail}`,
+          )
+        : null,
       title: movie.title,
       genre: movie.genres.join(', '),
-      category: movie.category?.category_name,
+      category: movie.category?.category_name || null,
       duration: movie.duration,
       status: movie.status,
       uploaded: movie.created_at,
@@ -174,13 +168,8 @@ export class DashboradService {
         page,
         perPage,
         totalItems,
-        totalPages:totalItems / perPage,
+        totalPages: Math.ceil(totalItems / perPage),
       },
     };
   }
-
-
-
-
-
 }

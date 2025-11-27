@@ -49,17 +49,7 @@ export class DashboradController {
 
   // *list for the media content table (based on image)
   @Get('content-list')
-  async getContentList(
-    @Query() paginationDto: PaginationDto,
-    @Query() contentListDto: ContentListDto
-  ) {
-    return this.dashboradService.getContentList(
-      paginationDto, 
-      contentListDto
-    );
+  async getContentList(@Query() contentListDto: ContentListDto) {
+    return this.dashboradService.getContentList(contentListDto);
   }
-
-
-
-
 }

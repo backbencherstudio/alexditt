@@ -64,12 +64,9 @@ export class CategoryController {
     return this.categoryService.getCategoryWithContentCount();
   }
 
-
-
-
-
-
-
-
-
+  // * category with movie, series count and status filter
+  @Get('admin/category-with-count/:status')
+  async getCategoryWithContentCountByStatus(@Param('status') status: string) {
+    return this.categoryService.getCategoryWithContentCountByStatus(status);
+  }
 }

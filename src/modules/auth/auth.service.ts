@@ -25,6 +25,7 @@ export class AuthService {
     @InjectRedis() private readonly redis: Redis,
   ) {}
 
+  // *get user details
   async me(userId: string) {
     try {
       const user = await this.prisma.user.findFirst({
@@ -69,6 +70,63 @@ export class AuthService {
           message: 'User not found',
         };
       }
+    } catch (error) {
+      return {
+        success: false,
+        message: error.message,
+      };
+    }
+  }
+
+  // *register user
+  async register({
+    email,
+    password,
+    name,
+    phone_number,
+    gender,
+    description,
+  }: {
+    email: string;
+    password: string;
+    name: string;
+    phone_number: string;
+    gender: string;
+    description: string;
+  }) {
+    try {
+      const userEmailExist = await UserRepository.exist({
+        field: 'email',
+        value: String(email),
+      });
+
+      if (userEmailExist) {
+        return {
+          statusCode: 401,
+          message: 'Email already exist',
+        };
+      }
+
+      const user = await UserRepository.createUser({
+        email: email,
+        password: password,
+        name: name,
+        phone_number: phone_number,
+        gender: gender,
+        description: description,
+      });
+
+      if (user == null && user.success == false) {
+        return {
+          success: false,
+          message: 'Failed to create account',
+        };
+      }
+
+      return {
+        success: true,
+        message: 'created user successfully',
+      };
     } catch (error) {
       return {
         success: false,
@@ -317,64 +375,6 @@ export class AuthService {
         success: true,
         message: 'Refresh token revoked successfully',
       };
-    } catch (error) {
-      return {
-        success: false,
-        message: error.message,
-      };
-    }
-  }
-
-  async register({
-    email,
-    password,
-    name,
-    phone_number,
-    gender,
-    description,
-  }: {
-    email: string;
-    password: string;
-    name: string;
-    phone_number: string;
-    gender: string;
-    description: string;
-  }) {
-    try {
-      const userEmailExist = await UserRepository.exist({
-        field: 'email',
-        value: String(email),
-      });
-
-      if (userEmailExist) {
-        return {
-          statusCode: 401,
-          message: 'Email already exist',
-        };
-      }
-
-      const user = await UserRepository.createUser({
-        email: email,
-        password: password,
-        name: name,
-        phone_number: phone_number,
-        gender: gender,
-        description: description,
-      });
-
-      if (user == null && user.success == false) {
-        return {
-          success: false,
-          message: 'Failed to create account',
-        };
-      }
-
-      return {
-        success: true,
-        message: 'created user successfully',
-      };
-
-
     } catch (error) {
       return {
         success: false,

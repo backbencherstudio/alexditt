@@ -30,6 +30,7 @@ import { AuthGuard } from '@nestjs/passport';
 export class AuthController {
   constructor(private authService: AuthService) {}
 
+  // *get user details
   @ApiOperation({ summary: 'Get user details' })
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
@@ -49,40 +50,46 @@ export class AuthController {
     }
   }
 
-  /*
-  // @ApiOperation({ summary: 'Register a user' })
-  // @Post('register')
-  // async create(@Body() data: CreateUserDto) {
-  //   try {
-         const name = data.name;
-  //     const email = data.email;
-  //     const password = data.password;
-         const phone_number = data.phone_number;
-         const gender = data.gender;
-         const description = data.description;
+  // *register user
+  @ApiOperation({ summary: 'Register a user' })
+  @UseInterceptors(
+    FileInterceptor('avater', {
+      storage: memoryStorage(),
+      limits: { fileSize: 5 * 1024 * 1024, files: 1 },
+    }),
+  )
+  @Post('register')
+  async create(
+    @Body() data: CreateUserDto) {
+    try {
+      const name = data.name;
+      const email = data.email;
+      const password = data.password;
+      const phone_number = data.phone_number;
+      const gender = data.gender;
+      const description = data.description;
 
-  //     if (!email) {
-  //       throw new HttpException('Email not provided', HttpStatus.UNAUTHORIZED);
-  //     }
+      if (!email) {
+        throw new HttpException('Email not provided', HttpStatus.UNAUTHORIZED);
+      }
 
-  //     const response = await this.authService.register({
-    //     email: email,
-    //     password: password,
-    //     name: name,
-          phone_number: phone_number;
-          gender: gender;
-          description: description;
+      const response = await this.authService.register({
+        email: email,
+        password: password,
+        name: name,
+        phone_number: phone_number,
+        gender: gender,
+        description: description,
+      });
 
-  //     return response;
-  //   } catch (error) {
-  //     return {
-  //       success: false,
-  //       message: error.message,
-  //     };
-  //   }
-  // }
- 
-  */
+      return response;
+    } catch (error) {
+      return {
+        success: false,
+        message: error.message,
+      };
+    }
+  }
 
   // login user
   @ApiOperation({ summary: 'Login user' })

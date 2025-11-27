@@ -6,24 +6,23 @@ import {
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { UpdateStatusDto } from './dto/update-status.dto';
 
 @Injectable()
 export class CategoryService {
   constructor(private readonly prisma: PrismaService) {}
 
-  //* Create a new category
+  // =========================================================
+  // CREATE
+  // =========================================================
   async create(createCategoryDto: CreateCategoryDto) {
     const { category_name, category_description } = createCategoryDto;
 
-    if (!category_name || category_name.trim() === '') {
+    if (!category_name?.trim()) {
       throw new BadRequestException('Category name is required.');
     }
 
     const isExist = await this.prisma.category.findFirst({
-      where: {
-        category_name: category_name,
-      },
+      where: { category_name },
     });
 
     if (isExist) {
@@ -38,49 +37,58 @@ export class CategoryService {
     });
 
     return {
+      success: true,
       message: 'Category created successfully',
       data: newCategory,
     };
   }
 
-  //* Fetch all categories
+  // =========================================================
+  // GET ALL
+  // =========================================================
   async findAll() {
-    const categories = await this.prisma.category.findMany();
+    const categories = await this.prisma.category.findMany({
+      orderBy: { created_at: 'asc' }
+    });
 
     return {
       success: true,
       message: 'Categories fetched successfully',
-      data: {
-        categories,
-      },
+      data: categories, // direct array
     };
   }
 
-  // * Fetch a category by ID
+  // =========================================================
+  // GET ONE
+  // =========================================================
   async findOne(id: string) {
-    const category = await this.prisma.category.findUnique({
-      where: { id },
-    });
+    const category = await this.prisma.category.findUnique({ where: { id } });
 
     if (!category) {
       throw new NotFoundException('Category not found');
     }
 
     return {
+      success: true,
       message: 'Category fetched successfully',
       data: category,
     };
   }
 
-  // * Update a category by ID
+  // =========================================================
+  // UPDATE
+  // =========================================================
   async update(id: string, updateCategoryDto: UpdateCategoryDto) {
     const { category_name, category_description, status } = updateCategoryDto;
+
     const category = await this.prisma.category.findUnique({
       where: { id },
     });
+
     if (!category) {
       throw new NotFoundException('Category not found');
     }
+
     const updatedCategory = await this.prisma.category.update({
       where: { id },
       data: {
@@ -91,31 +99,34 @@ export class CategoryService {
     });
 
     return {
+      success: true,
       message: 'Category updated successfully',
       data: updatedCategory,
     };
   }
 
-  // * Delete a category by ID
+  // =========================================================
+  // DELETE
+  // =========================================================
   async remove(id: string) {
-    const category = await this.prisma.category.findUnique({
-      where: { id },
-    });
+    const category = await this.prisma.category.findUnique({ where: { id } });
+
     if (!category) {
       throw new NotFoundException('Category not found');
     }
-    await this.prisma.category.delete({
-      where: { id },
-    });
+
+    await this.prisma.category.delete({ where: { id } });
 
     return {
+      success: true,
       message: 'Category deleted successfully',
+      data: null, // keep structure consistent
     };
   }
 
-  // admin ==========================================
-
-  //  * category with movie, series count
+  // =========================================================
+  // ADMIN - CATEGORY WITH COUNT
+  // =========================================================
   async getCategoryWithContentCount() {
     const categoriesWithCount = await this.prisma.category.findMany({
       select: {
@@ -124,38 +135,65 @@ export class CategoryService {
         category_description: true,
         category_status: true,
         _count: {
-          select: {
-            movies: true,
-            series: true,
-          },
+          select: { movies: true, series: true },
         },
       },
     });
 
-    // Map the results to flatten the content count for the frontend
     const categories = categoriesWithCount.map((cat) => {
-      const contentCount = cat._count.movies + cat._count.series;
-      
-      const { _count, ...categoryData } = cat;
-
+      const { _count, ...rest } = cat;
       return {
-        ...categoryData,
-        contentCount, 
+        ...rest,
+        movieCount: _count.movies ?? 0,
+        seriesCount: _count.series ?? 0,
+        contentCount: (_count.movies ?? 0) + (_count.series ?? 0),
       };
     });
 
     return {
+      success: true,
       message: 'Categories fetched successfully',
-      data: {
-        categories,
-      },
+      data: categories,
     };
   }
 
+  // =========================================================
+  // ADMIN - CATEGORY WITH COUNT BY STATUS
+  // =========================================================
+  async getCategoryWithContentCountByStatus(status: string) {
+    const filterStatus = status.toUpperCase();
 
+    if (!['ACTIVE', 'INACTIVE'].includes(filterStatus)) {
+      throw new BadRequestException('Status must be ACTIVE or INACTIVE');
+    }
 
+    const categoriesWithCount = await this.prisma.category.findMany({
+      where: { category_status: filterStatus as any },
+      select: {
+        id: true,
+        category_name: true,
+        category_description: true,
+        category_status: true,
+        _count: {
+          select: { movies: true, series: true },
+        },
+      },
+    });
 
+    const categories = categoriesWithCount.map((cat) => {
+      const { _count, ...rest } = cat;
+      return {
+        ...rest,
+        movieCount: _count.movies ?? 0,
+        seriesCount: _count.series ?? 0,
+        contentCount: (_count.movies ?? 0) + (_count.series ?? 0),
+      };
+    });
 
-
-
+    return {
+      success: true,
+      message: 'Categories fetched successfully',
+      data: categories,
+    };
+  }
 }
