@@ -5,8 +5,9 @@ import { FaqModule } from './faq/faq.module';
 import { MoviesModule } from './movies/movies.module';
 import { MediaModule } from './media/media.module';
 import { StreamModule } from './stream/stream.module';
+import { FavouriteModule } from './favourite/favourite.module';
 
 @Module({
-  imports: [NotificationModule, ContactModule, FaqModule, MoviesModule, MediaModule, StreamModule],
+  imports: [NotificationModule, ContactModule, FaqModule, MoviesModule, MediaModule, StreamModule, FavouriteModule],
 })
 export class ApplicationModule {}

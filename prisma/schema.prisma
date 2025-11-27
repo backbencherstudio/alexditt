@@ -94,6 +94,7 @@ model User {
   Movie                Movie[]
   series               Series[]
   likeComents          LikeComents[]
+  favorites            Favorite[]
 
   @@map("users")
 }
@@ -542,6 +543,28 @@ model Cast {
   @@map("casts")
 }
 
+
+
+model Favorite{
+  id         String    @id @default(cuid())
+  created_at DateTime  @default(now())
+  updated_at DateTime  @default(now())
+
+  user_id String?
+  user    User?   @relation(fields: [user_id], references: [id])
+
+  movie_id String?
+  movie    Movie?  @relation(fields: [movie_id], references: [id])
+
+  series_id String?
+  series    Series? @relation(fields: [series_id], references: [id])
+
+  @@map("favorites")
+}
+
+
+
+
 model Movie {
   id           String    @id @default(cuid())
   title        String
@@ -572,6 +595,7 @@ model Movie {
 
   casts       Cast[]
   likeComents LikeComents[]
+  favorites  Favorite[]
 
   @@map("movies")
 }
@@ -607,6 +631,8 @@ model Series {
   casts       Cast[]
   episodes    Episode[]
   likeComents LikeComents[]
+
+  favorites  Favorite[]
 
   @@map("series")
 }
