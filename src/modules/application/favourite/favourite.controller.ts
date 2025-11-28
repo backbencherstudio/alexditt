@@ -1,34 +1,36 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+  UseGuards,
+  Req,
+  Query,
+} from '@nestjs/common';
 import { FavouriteService } from './favourite.service';
 import { CreateFavouriteDto } from './dto/create-favourite.dto';
 import { UpdateFavouriteDto } from './dto/update-favourite.dto';
+import { JwtAuthGuard } from 'src/modules/auth/guards/jwt-auth.guard';
 
+@UseGuards(JwtAuthGuard)
 @Controller('favourite')
 export class FavouriteController {
   constructor(private readonly favouriteService: FavouriteService) {}
 
+  // *Create a new favourite
   @Post()
-  create(@Body() createFavouriteDto: CreateFavouriteDto) {
-    return this.favouriteService.create(createFavouriteDto);
+  async create(@Req() req, @Body() createFavouriteDto: CreateFavouriteDto) {
+    const userId = req.user.userId;
+    return this.favouriteService.create(createFavouriteDto, userId);
   }
 
+  // *Get all favourites
   @Get()
-  findAll() {
-    return this.favouriteService.findAll();
-  }
-
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.favouriteService.findOne(+id);
-  }
-
-  @Patch(':id')
-  update(@Param('id') id: string, @Body() updateFavouriteDto: UpdateFavouriteDto) {
-    return this.favouriteService.update(+id, updateFavouriteDto);
-  }
-
-  @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.favouriteService.remove(+id);
+  async findAll(@Req() req, @Query() category?: string) {
+    const userId = req.user.userId;
+    return this.favouriteService.findAll(userId, category);
   }
 }
