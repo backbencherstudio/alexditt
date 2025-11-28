@@ -7,6 +7,7 @@ import { MediaModule } from './media/media.module';
 import { StreamModule } from './stream/stream.module';
 import { FavouriteModule } from './favourite/favourite.module';
 
+
 @Module({
   imports: [NotificationModule, ContactModule, FaqModule, MoviesModule, MediaModule, StreamModule, FavouriteModule],
 })

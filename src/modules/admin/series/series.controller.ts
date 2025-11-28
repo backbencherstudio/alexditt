@@ -30,7 +30,7 @@ import { Role } from 'src/common/guard/role/role.enum';
 export class SeriesController {
   constructor(private readonly seriesService: SeriesService) {}
 
-  // create a series
+  // *create a series
   @Post('create')
   @ApiConsumes('multipart/form-data')
   @UseInterceptors(AnyFilesInterceptor())
@@ -126,5 +126,29 @@ export class SeriesController {
         message: 'An error occurred while creating the series.',
       };
     }
+  }
+
+  // *update a series
+  @Patch(':id')
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(AnyFilesInterceptor())
+  async updateSeries(
+    @Param('id') id: string,
+    @Body() dto: UpdateSeriesDto,
+    @UploadedFiles() files: Array<Express.Multer.File>,
+  ) {
+    return this.seriesService.updateSeries(id, dto, files);
+  }
+
+  // *get series details
+   @Get()
+  async getAllSeries() {
+    return this.seriesService.getAllSeries();
+  }
+
+  // *get series delete
+  @Delete(':id')
+  async deleteSeries(@Param('id') id: string) {
+    return this.seriesService.deleteSeries(id);
   }
 }

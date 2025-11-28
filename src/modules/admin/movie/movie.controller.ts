@@ -36,7 +36,7 @@ import { Roles } from 'src/common/guard/role/roles.decorator';
 export class MovieController {
   constructor(private readonly movieService: MovieService) {}
 
-  // create a movie
+  // *create a movie
   @Post('create')
   @UseInterceptors(AnyFilesInterceptor())
   async createAMovie(
@@ -60,10 +60,13 @@ export class MovieController {
       const movieThumbnailFiles = files.filter(
         (file) => file.fieldname === 'movie_thumbnail',
       );
+
       const videoFiles = files.filter((file) => file.fieldname === 'video');
+
       const directorThumbnailFile = files.find(
         (f) => f.fieldname === 'director_thumbnail',
       );
+
       const movieTrailerFile = files.find(
         (f) => f.fieldname === 'movie_trailer',
       );
@@ -109,6 +112,7 @@ export class MovieController {
       const movieThumbnailFile = movieThumbnailFiles[0];
       const videoFile = videoFiles[0];
       const castThumbnailsMap = new Map<string, Express.Multer.File>();
+
       castThumbnailFiles.forEach((file) => {
         castThumbnailsMap.set(file.fieldname, file);
       });
@@ -157,18 +161,25 @@ export class MovieController {
     }
   }
 
-  @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.movieService.findOne(+id);
-  }
-
+  // *update a movie
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateMovieDto: UpdateMovieDto) {
-    return this.movieService.update(+id, updateMovieDto);
+  @UseInterceptors(AnyFilesInterceptor())
+  async update(
+    @Param('id') id: string,
+    @Body() updateMovieDto: UpdateMovieDto,
+    @UploadedFiles() files: Array<Express.Multer.File>,
+  ) {
+    return this.movieService.update(id, updateMovieDto, files);
   }
 
+  // *get all movies
+  @Get()
+  async getAll() {
+    return this.movieService.getAll();
+  }
+  // *delete movie
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.movieService.remove(+id);
+  async delete(@Param('id') id: string) {
+    return this.movieService.delete(id);
   }
 }

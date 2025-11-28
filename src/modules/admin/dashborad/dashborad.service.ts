@@ -134,6 +134,7 @@ export class DashboradService {
         skip,
         take: perPage,
         select: {
+          id: true,
           movie_thumbnail: true,
           title: true,
           genres: true,
@@ -147,6 +148,7 @@ export class DashboradService {
     ]);
 
     const formattedContent = contentList.map((movie) => ({
+      id: movie.id,
       thumbnail: movie.movie_thumbnail
         ? SojebStorage.url(
             `${appConfig().storageUrl.movie}/${movie.movie_thumbnail}`,

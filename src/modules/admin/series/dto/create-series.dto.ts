@@ -57,4 +57,6 @@ export class CreateSeriesDto {
   @IsString()
   @IsOptional()
   season_info?: string;
+
+ 
 }
