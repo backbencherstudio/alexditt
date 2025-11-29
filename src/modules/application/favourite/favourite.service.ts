@@ -126,4 +126,24 @@ export class FavouriteService {
       data: formatted,
     };
   }
+
+  // *Remove a favourite
+  async remove(id: string, userId: string) {
+    const favourite = await this.prisma.favorite.findUnique({
+      where: { id },
+    });
+    if (!favourite || favourite.user_id !== userId) {
+      throw new BadRequestException('Favourite not found or unauthorized');
+    }
+
+    await this.prisma.favorite.delete({
+      where: { id },
+    });
+
+    return {
+      success: true,
+      message: 'Favourite removed successfully',
+    };
+  } 
+
 }

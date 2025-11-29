@@ -59,8 +59,7 @@ export class AuthController {
     }),
   )
   @Post('register')
-  async create(
-    @Body() data: CreateUserDto) {
+  async create(@Body() data: CreateUserDto) {
     try {
       const name = data.name;
       const email = data.email;

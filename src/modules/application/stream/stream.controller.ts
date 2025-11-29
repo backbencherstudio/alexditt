@@ -44,6 +44,8 @@ export class StreamController {
     }
   }
 
+  // note: live tv endpoints
+
   @Get('categories')
   @ApiOperation({ summary: 'Get Live TV Categories' })
   async getCategories() {
@@ -83,6 +85,8 @@ export class StreamController {
     }
   }
 
+  // note: movie (VOD) endpoints
+
   @Get('movies/categories')
   @ApiOperation({ summary: 'Get All Movie (VOD) Categories' })
   async getMovieCategories() {
@@ -121,4 +125,71 @@ export class StreamController {
       };
     }
   }
+
+  // note:series
+
+  // * get Series Categories
+  @Get('series/categories')
+  @ApiOperation({ summary: 'Get All Series Categories' })
+  async getSeriesCategories() {
+    try {
+      const categories = await this.streamService.getSeriesCategories();
+      return {
+        success: true,
+        data: categories,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: 'Failed to fetch series categories',
+      };
+    }
+  }
+
+  // * get Series by Category ID
+  @Get('series/category/:categoryId')
+  @ApiOperation({ summary: 'Get Series by Category ID' })
+  @ApiParam({
+    name: 'categoryId',
+    description: 'Category ID from series categories list',
+  })
+  async getSeriesByCategory(@Param('categoryId') categoryId: string) {
+    try {
+      const series = await this.streamService.getSeries(categoryId);
+      return {
+        success: true,
+        count: series.length,
+        data: series,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: 'Failed to fetch series',
+      };
+    }
+  }
+
+  // * get All Series
+  @Get('series/info/:seriesId')
+  @ApiOperation({ summary: 'Get Full Series Info (Seasons & Episodes)' })
+  @ApiParam({
+    name: 'seriesId',
+    description: 'Series ID from the series list',
+  })
+  async getSeriesInfo(@Param('seriesId') seriesId: string) {
+    try {
+      const seriesInfo = await this.streamService.getSeriesInfo(seriesId);
+      return {
+        success: true,
+        data: seriesInfo,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: 'Failed to fetch series info',
+      };
+    }
+  }
+
+  
 }

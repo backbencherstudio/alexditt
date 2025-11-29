@@ -33,4 +33,11 @@ export class FavouriteController {
     const userId = req.user.userId;
     return this.favouriteService.findAll(userId, category);
   }
+
+  // *Remove a favourite
+  @Delete(':id')
+  async remove(@Req() req, @Param('id') id: string) {
+    const userId = req.user.userId;
+    return this.favouriteService.remove(id, userId);
+  }
 }
