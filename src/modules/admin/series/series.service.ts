@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { CreateSeriesDto } from './dto/create-series.dto';
 import { UpdateSeriesDto } from './dto/update-series.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
@@ -6,6 +6,7 @@ import { StringHelper } from 'src/common/helper/string.helper';
 import { SojebStorage } from 'src/common/lib/Disk/SojebStorage';
 import appConfig from 'src/config/app.config';
 import { Prisma } from '@prisma/client';
+import { CreateEpisodeDto } from './dto/create-episode.dto';
 
 @Injectable()
 export class SeriesService {
@@ -582,6 +583,149 @@ export class SeriesService {
       return {
         success: false,
         message: 'Failed to delete series.',
+      };
+    }
+  }
+
+  // Add new season by seriesId
+  async createSeasonAndEpisodes(
+    seriesId: string,
+    parsedSeasonInfo: any,
+    parsedEpisodes: any[],
+    seasonThumbnailFile: Express.Multer.File,
+    episodeFilesMap: Map<
+      string,
+      { thumbnail?: Express.Multer.File; video?: Express.Multer.File }
+    >,
+  ) {
+    try {
+      // 1. Verify the parent series exists
+      const series = await this.prisma.series.findUnique({
+        where: { id: seriesId },
+      });
+      if (!series) {
+        return {
+          success: false,
+          message: `Series with ID "${seriesId}" not found.`,
+        };
+      }
+
+      // --- FIX START: Calculate the next sequential episode number ---
+
+      // 2. Find the highest existing episode number for this series
+      const maxEpisode = await this.prisma.episode.aggregate({
+        where: { series_id: seriesId },
+        _max: {
+          episode_number: true,
+        },
+      });
+
+      // Determine the starting episode number for the new season
+      const lastEpisodeNumber = maxEpisode._max.episode_number || 0;
+      let nextEpisodeNumber = lastEpisodeNumber + 1;
+
+      // -----------------------------------------------------------
+
+      // 3. Upload Season Thumbnail
+      const seasonThumbnailName = `${StringHelper.randomString()}_${seasonThumbnailFile.originalname}`;
+      await SojebStorage.put(
+        `${appConfig().storageUrl.season}/${seasonThumbnailName}`,
+        seasonThumbnailFile.buffer,
+        // mimetype argument removed to fix TS2554 error
+      );
+
+      // 4. Upload Episode Files
+      const uploadedEpisodeFiles = new Map<
+        string,
+        { thumbnail?: string; video?: string }
+      >();
+      for (const [key, filePair] of episodeFilesMap.entries()) {
+        const uploadedPair: { thumbnail?: string; video?: string } = {};
+
+        // Upload Episode Thumbnail
+        if (filePair.thumbnail) {
+          const thumbName = `${StringHelper.randomString()}_${filePair.thumbnail.originalname}`;
+          await SojebStorage.put(
+            `${appConfig().storageUrl.episode}/${thumbName}`,
+            filePair.thumbnail.buffer,
+            // mimetype argument removed
+          );
+          uploadedPair.thumbnail = thumbName;
+        }
+
+        // Upload Episode Video
+        if (filePair.video) {
+          const videoName = `${StringHelper.randomString()}_${filePair.video.originalname}`;
+          await SojebStorage.put(
+            `${appConfig().storageUrl.episode}/${videoName}`,
+            filePair.video.buffer,
+            // mimetype argument removed
+          );
+          uploadedPair.video = videoName;
+        }
+        uploadedEpisodeFiles.set(key, uploadedPair);
+      }
+
+      // 5. Database Transaction
+      return await this.prisma.$transaction(async (tx) => {
+        // A. Create the new Season record
+        const createdSeason = await tx.season.create({
+          data: {
+            title: parsedSeasonInfo.title,
+            release_date: parsedSeasonInfo.release_date,
+            season_thumbnail: seasonThumbnailName,
+            // Connect to the existing series
+            series: { connect: { id: seriesId } },
+          },
+        });
+        const seasonId = createdSeason.id;
+
+        // B. Create Episode records
+        for (const episode of parsedEpisodes) {
+          const files = uploadedEpisodeFiles.get(episode.key);
+
+          if (!files?.video) {
+            throw new Error(
+              `Video file for episode key "${episode.key}" is missing.`,
+            );
+          }
+
+          // Use the calculated sequential episode number
+          const episodeNumberToUse = nextEpisodeNumber;
+          nextEpisodeNumber++; // Increment the counter for the next episode
+
+          await tx.episode.create({
+            data: {
+              // Now using the unique sequential number instead of the DTO's episode_number
+              episode_number: episodeNumberToUse,
+              title: episode.title,
+              description: episode.description,
+              duration: Number(episode.duration),
+              release_date: episode.release_date,
+              episode_thumbnails: files?.thumbnail || null,
+              episode_videos: files.video,
+
+              // Connect to both the new season and the parent series
+              series: { connect: { id: seriesId } },
+              season: { connect: { id: seasonId } },
+            },
+          });
+        }
+
+        return {
+          success: true,
+          message: `Season "${createdSeason.title}" and ${parsedEpisodes.length} episodes added successfully to series ID ${seriesId}.`,
+          data: { seriesId: seriesId, seasonId: seasonId },
+        };
+      });
+    } catch (error) {
+      console.error('Error in createSeasonAndEpisodes:', error);
+      // Ensure the error response clearly shows the original Prisma error message if available
+      return {
+        success: false,
+        message:
+          error.message ||
+          'An unexpected error occurred while adding season and episodes.',
       };
     }
   }
