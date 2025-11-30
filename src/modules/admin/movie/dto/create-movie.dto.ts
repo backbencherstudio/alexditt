@@ -36,6 +36,9 @@ export class CreateMovieDto {
   @IsEnum(Genre, { each: true })
   @IsOptional()
   @Transform(({ value }) => {
+    if (typeof value === 'string' && value.includes(',')) {
+        return value.split(',').map(item => item.trim());
+    }
     if (typeof value === 'string') return [value];
     return value;
   })

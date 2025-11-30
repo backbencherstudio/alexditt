@@ -248,8 +248,6 @@ export class StreamService {
       const response = await axios.get(url);
       const data = response.data;
 
-      console.log('Series Data:', data);
-
       if (!Array.isArray(data)) return [];
 
       return data.map((series) => ({

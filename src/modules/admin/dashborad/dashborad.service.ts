@@ -3,7 +3,7 @@ import { CreateDashboradDto } from './dto/create-dashborad.dto';
 import { UpdateDashboradDto } from './dto/update-dashborad.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { PaginationDto } from 'src/common/pagination/dto/offset-pagination.dto';
-import { Genre } from '@prisma/client';
+import { Genre, Movie, Series } from '@prisma/client';
 import { ContentListDto } from './dto/content-list.dto';
 import appConfig from 'src/config/app.config';
 import { SojebStorage } from 'src/common/lib/Disk/SojebStorage';
@@ -108,63 +108,99 @@ export class DashboradService {
   async getContentList(contentListDto: ContentListDto) {
     const { page, perPage, genres, category_id, status } = contentListDto;
 
-    const skip = (page - 1) * perPage;
-
     const where: any = {};
-
-    // optional genre filter
     if (genres && genres.length > 0) {
       where.genres = { hasSome: genres };
     }
-
-    // optional category filter
     if (category_id) {
       where.category_id = category_id;
     }
-
-    // optional status filter
     if (status) {
       where.status = status;
     }
 
-    const [totalItems, contentList] = await Promise.all([
-      this.prisma.movie.count({ where }),
+   
+    const [movieMetadata, seriesMetadata, totalMovieItems, totalSeriesItems] =
+      await Promise.all([
+        this.prisma.movie.findMany({
+          where,
+          select: { id: true, created_at: true },
+        }),
+        this.prisma.series.findMany({
+          where,
+          select: { id: true, created_at: true },
+        }),
+        this.prisma.movie.count({ where }),
+        this.prisma.series.count({ where }),
+      ]);
+
+    const totalItems = totalMovieItems + totalSeriesItems;
+
+    const mergedMetadata = [
+      ...movieMetadata.map((m) => ({ ...m, type: 'Movie' as const })),
+      ...seriesMetadata.map((s) => ({ ...s, type: 'Series' as const })),
+    ];
+
+    mergedMetadata.sort(
+      (a, b) => b.created_at.getTime() - a.created_at.getTime(),
+    );
+
+    const skip = (page - 1) * perPage;
+    const paginatedMetadata = mergedMetadata.slice(skip, skip + perPage);
+
+    const movieIds = paginatedMetadata
+      .filter((item) => item.type === 'Movie')
+      .map((item) => item.id);
+    const seriesIds = paginatedMetadata
+      .filter((item) => item.type === 'Series')
+      .map((item) => item.id);
+
+    const [paginatedMovies, paginatedSeries] = await Promise.all([
       this.prisma.movie.findMany({
-        where,
-        skip,
-        take: perPage,
-        select: {
-          id: true,
-          movie_thumbnail: true,
-          title: true,
-          genres: true,
-          category: { select: { category_name: true } },
-          duration: true,
-          status: true,
-          created_at: true,
-        },
-        orderBy: { created_at: 'desc' },
+        where: { id: { in: movieIds } },
+        include: { category: { select: { category_name: true } } }, 
+      }),
+      this.prisma.series.findMany({
+        where: { id: { in: seriesIds } },
+        include: { category: { select: { category_name: true } } }, 
       }),
     ]);
 
-    const formattedContent = contentList.map((movie) => ({
-      id: movie.id,
-      thumbnail: movie.movie_thumbnail
-        ? SojebStorage.url(
-            `${appConfig().storageUrl.movie}/${movie.movie_thumbnail}`,
-          )
-        : null,
-      title: movie.title,
-      genre: movie.genres.join(', '),
-      category: movie.category?.category_name || null,
-      duration: movie.duration,
-      status: movie.status,
-      uploaded: movie.created_at,
-    }));
+   
+    const finalPaginatedContent = paginatedMetadata.map((metadata) => {
+      if (metadata.type === 'Movie') {
+        return paginatedMovies.find((m) => m.id === metadata.id);
+      }
+      return paginatedSeries.find((s) => s.id === metadata.id);
+    });
+
+    
+    const formattedContent = finalPaginatedContent
+      .filter(Boolean)
+      .map((content: any) => ({
+        id: content.id,
+        thumbnail: content.movie_thumbnail
+          ? SojebStorage.url(
+              `${appConfig().storageUrl.movie}/${content.movie_thumbnail}`,
+            )
+          : content.series_thumbnail
+            ? SojebStorage.url(
+                `${appConfig().storageUrl.series}/${content.series_thumbnail}`,
+              )
+            : null,
+        title: content.title,
+        genre: content.genres.join(', '),
+        category: content.category?.category_name || null,
+        duration: content.duration || 'N/A (Series)',
+        type: content.movie_thumbnail ? 'Movie' : 'Series',
+        status: content.status,
+        uploaded: content.created_at,
+      }));
 
     return {
       success: true,
-      message: 'Content list fetched successfully',
+      message:
+        'Content list (Movies and Series) fetched successfully (Optimized)',
       data: formattedContent,
       pagination: {
         page,

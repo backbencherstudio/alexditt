@@ -2,6 +2,8 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { CreateFavouriteDto } from './dto/create-favourite.dto';
 import { UpdateFavouriteDto } from './dto/update-favourite.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
+import appConfig from 'src/config/app.config';
+import { SojebStorage } from 'src/common/lib/Disk/SojebStorage';
 
 @Injectable()
 export class FavouriteService {
@@ -53,7 +55,6 @@ export class FavouriteService {
       };
     }
 
-    
     const favourite = await this.prisma.favorite.create({
       data: {
         user_id: userId,
@@ -110,15 +111,48 @@ export class FavouriteService {
       orderBy: { created_at: 'desc' },
     });
 
-    const formatted = favourites.map((fav) => ({
-      id: fav.movie?.id || fav.series?.id,
-      type: fav.movie ? 'movie' : 'series',
-      title: fav.movie?.title || fav.series?.title,
-      thumbnail: fav.movie?.movie_thumbnail || fav.series?.series_thumbnail,
-      release_date: fav.movie?.release_date || fav.series?.release_date,
-      genres: fav.movie?.genres || fav.series?.genres || [],
-      category_id: fav.movie?.category_id || fav.series?.category_id,
-    }));
+    if (favourites.length === 0) {
+      return {
+        success: true,
+        message: isAll
+          ? 'No favourites found'
+          : 'No favourites found for this category',
+        data: [],
+      };
+    }
+
+    const formatted = favourites.map((fav) => {
+      const isMovie = fav.movie !== null;
+      const content = isMovie ? fav.movie : fav.series;
+
+      let url = null;
+      if (content) {
+        const storagePath = isMovie
+          ? appConfig().storageUrl.movie
+          : appConfig().storageUrl.series;
+
+        const thumbnailName = isMovie
+          ? fav.movie!.movie_thumbnail
+          : fav.series!.series_thumbnail;
+
+        if (thumbnailName) {
+          url = SojebStorage.url(`${storagePath}/${thumbnailName}`);
+        }
+      }
+
+      return {
+        id: content?.id,
+        type: isMovie ? 'movie' : 'series',
+        title: content?.title,
+        thumbnail: isMovie
+          ? fav.movie?.movie_thumbnail
+          : fav.series?.series_thumbnail,
+        url: url,
+        release_date: content?.release_date,
+        genres: content?.genres || [],
+        category_id: content?.category_id,
+      };
+    });
 
     return {
       success: true,
@@ -144,6 +178,5 @@ export class FavouriteService {
       success: true,
       message: 'Favourite removed successfully',
     };
-  } 
-
+  }
 }
