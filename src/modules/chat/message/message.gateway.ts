@@ -58,15 +58,17 @@ export class MessageGateway
   // implement jwt token validation
   async handleConnection(client: Socket, ...args: any[]) {
     try {
-      // const token = client.handshake.headers.authorization?.split(' ')[1];
-      const token = client.handshake.auth.token;
+      const token = client.handshake.headers.authorization?.split(' ')[1];
+      // const token = client.handshake.auth.token;
       if (!token) {
         client.disconnect();
         console.log('No token provided');
         return;
       }
 
-      const decoded: any = jwt.verify(token, appConfig().jwt.secret);
+      const decoded: any = jwt.verify(token, appConfig().jwt.secret, {
+        ignoreExpiration: true,
+      });
       // const decoded: any = this.jwtService.verify(token);
       // const userId = client.handshake.query.userId as string;
       const userId = decoded.sub;
@@ -76,11 +78,21 @@ export class MessageGateway
         return;
       }
 
+      client.join(userId); // join the room using user_id
+      client.emit('joinedRoom', { room_id: userId });
+
       this.clients.set(userId, client.id);
       // console.log(`User ${userId} connected with socket ${client.id}`);
       await ChatRepository.updateUserStatus(userId, 'online');
       // notify the user that the user is online
-      this.server.emit('userStatusChange', {
+      // this.server.emit('userStatusChange', {
+      //   user_id: userId,
+      //   status: 'online',
+      // });
+
+      this.server;
+
+      client.broadcast.emit('userStatusChange', {
         user_id: userId,
         status: 'online',
       });
@@ -88,8 +100,14 @@ export class MessageGateway
       console.log(`User ${userId} connected`);
     } catch (error) {
       client.disconnect();
-      console.error('Error handling connection:', error);
+      // console.error('Error handling connection:', error);
     }
+  }
+
+  // listen for test event and send response to the client
+  @SubscribeMessage('test')
+  handleTest(client: Socket, @MessageBody() body: any) {
+    this.server.emit('test', { message: 'Hello from server' });
   }
 
   async handleDisconnect(client: Socket) {
@@ -108,7 +126,12 @@ export class MessageGateway
 
       await ChatRepository.updateUserStatus(userId, 'offline');
       // notify the user that the user is offline
-      this.server.emit('userStatusChange', {
+      // this.server.emit('userStatusChange', {
+      //   user_id: userId,
+      //   status: 'offline',
+      // });
+
+      client.broadcast.emit('userStatusChange', {
         user_id: userId,
         status: 'offline',
       });
