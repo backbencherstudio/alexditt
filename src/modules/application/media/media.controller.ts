@@ -44,7 +44,7 @@ export class MediaController {
     description: 'Items per page',
   })
   async getRecentMedia(
-    @Req() req,
+    @Req() req: any,
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
     @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
   ) {

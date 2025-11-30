@@ -151,6 +151,7 @@ export class MovieController {
         castThumbnailsMap,
         directorThumbnailFile,
       );
+
       return createAMovie;
     } catch (error) {
       console.error(error);

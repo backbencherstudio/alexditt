@@ -11,10 +11,15 @@ import { SojebStorage } from 'src/common/lib/Disk/SojebStorage';
 import appConfig from 'src/config/app.config';
 import { StringHelper } from 'src/common/helper/string.helper';
 import { ParsedCastMember } from './interface/parse-cast.interface';
+import { title } from 'process';
+import { MessageGateway } from 'src/modules/chat/message/message.gateway';
 
 @Injectable()
 export class MovieService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private readonly messageGateway: MessageGateway,
+  ) {}
 
   // *create movie
   async createAMovie(
@@ -107,7 +112,43 @@ export class MovieService {
               create: castCreateData,
             },
           },
+          select: {
+            id: true,
+            title: true,
+            movie_thumbnail: true,
+            release_date: true,
+            created_at: true,
+          },
         });
+
+        const responseData = {
+          id: movie.id,
+          title: movie.title,
+          release_date: movie.release_date,
+          create_at: movie.created_at,
+          movie_thumbnail: movie.movie_thumbnail
+            ? SojebStorage.url(
+                `${appConfig().storageUrl.movie}/${movie.movie_thumbnail}`,
+              )
+            : null,
+          status: 'New Release',
+        };
+
+        const users = await this.prisma.user.findMany({
+          select: {
+            id: true,
+          },
+        });
+
+        const userIdsToSendNotification = users.map((user) => user.id);
+
+        if (responseData && userIdsToSendNotification.length > 0) {
+          userIdsToSendNotification.forEach((currentUserId) => {
+            this.messageGateway.server
+              .to(currentUserId)
+              .emit('movie', responseData);
+          });
+        }
 
         return {
           success: true,
