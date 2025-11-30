@@ -22,21 +22,27 @@ export class FavouriteController {
 
   // *Create a new favourite
   @Post()
-  async create(@Req() req, @Body() createFavouriteDto: CreateFavouriteDto) {
+  async create(
+    @Req() req,
+    @Body() createFavouriteDto: CreateFavouriteDto) {
     const userId = req.user.userId;
     return this.favouriteService.create(createFavouriteDto, userId);
   }
 
   // *Get all favourites
   @Get()
-  async findAll(@Req() req, @Query() category?: string) {
+  async findAll(
+    @Req() req, 
+    @Query('category') category?: string) {
     const userId = req.user.userId;
     return this.favouriteService.findAll(userId, category);
   }
 
   // *Remove a favourite
   @Delete(':id')
-  async remove(@Req() req, @Param('id') id: string) {
+  async remove(
+    @Req() req, 
+    @Param('id') id: string) {
     const userId = req.user.userId;
     return this.favouriteService.remove(id, userId);
   }

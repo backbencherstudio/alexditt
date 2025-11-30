@@ -141,18 +141,11 @@ export class MovieService {
       // ---------------------------------------
       // FILE EXTRACTION
       // ---------------------------------------
-      const movieThumbnail = files.find(
-        (f) => f.fieldname === 'movie_thumbnail',
-      );
+      const movieThumbnail = files.find((f) => f.fieldname === 'movie_thumbnail');
       const movieTrailer = files.find((f) => f.fieldname === 'movie_trailer');
       const videoFile = files.find((f) => f.fieldname === 'video');
-      const directorThumb = files.find(
-        (f) => f.fieldname === 'director_thumbnail',
-      );
-
-      const castThumbFiles = files.filter((f) =>
-        f.fieldname.startsWith('cast_'),
-      );
+      const directorThumb = files.find((f) => f.fieldname === 'director_thumbnail');
+      const castThumbFiles = files.filter((f) => f.fieldname.startsWith('cast_'));
 
       // ---------------------------------------
       // PARSE CAST JSON (OPTIONAL)
@@ -373,6 +366,84 @@ export class MovieService {
       success: true,
       message: 'Movies fetched successfully',
       data: movies,
+    };
+  }
+
+  // *get movie by id
+  async getOne(id: string) {
+    const movie = await this.prisma.movie.findUnique({
+      where: { id },
+      include: {
+        casts: true,
+        category: true,
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+        likeComents: {
+          select: {
+            is_like: true,
+            is_dislike: true,
+            is_favorite: true,
+            comment_text: true,
+          },
+        },
+      },
+    });
+
+    if (!movie) {
+      throw new NotFoundException('Movie not found');
+    }
+
+  
+    const getUrl = (path: string, fileName: string | null) => {
+      return fileName ? SojebStorage.url(`${path}/${fileName}`) : null;
+    };
+
+   
+    const movieThumbnailUrl = getUrl(
+      appConfig().storageUrl.movie,
+      movie.movie_thumbnail,
+    );
+    const movieTrailerUrl = getUrl(
+      appConfig().storageUrl.movie,
+      movie.movie_trailer,
+    );
+    const videoUrl = getUrl(appConfig().storageUrl.movie, movie.video);
+    const directorThumbnailUrl = getUrl(
+      appConfig().storageUrl.movie_director,
+      movie.director_thumbnail,
+    );
+
+   
+    const castsWithUrls = movie.casts.map((cast) => ({
+      ...cast,
+      cast_thumbnail_url: getUrl(
+        appConfig().storageUrl.cast,
+        cast.cast_thumbnail,
+      ),
+    }));
+
+    
+    const formattedMovie = {
+      ...movie,
+
+     
+      movie_thumbnail_url: movieThumbnailUrl,
+      movie_trailer_url: movieTrailerUrl,
+      video_url: videoUrl,
+      director_thumbnail_url: directorThumbnailUrl,
+
+      casts: castsWithUrls, 
+    };
+
+    return {
+      success: true,
+      message: 'Movie fetched successfully',
+      data: formattedMovie,
     };
   }
 

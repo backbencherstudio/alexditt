@@ -177,6 +177,13 @@ export class MovieController {
   async getAll() {
     return this.movieService.getAll();
   }
+
+  // *get a movie by id
+  @Get(':id')
+  async getById(@Param('id') id: string) {
+    return this.movieService.getOne(id);
+  }
+
   // *delete movie
   @Delete(':id')
   async delete(@Param('id') id: string) {
