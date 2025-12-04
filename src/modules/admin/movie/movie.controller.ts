@@ -11,6 +11,7 @@ import {
   UploadedFiles,
   UseGuards,
   BadRequestException,
+  UploadedFile,
 } from '@nestjs/common';
 import { MovieService } from './movie.service';
 import { CreateMovieDto } from './dto/create-movie.dto';
@@ -19,6 +20,7 @@ import { CreateGenreDto } from './dto/create-genre.dto';
 import {
   AnyFilesInterceptor,
   FileFieldsInterceptor,
+  FileInterceptor,
 } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { ParsedCastMember } from './interface/parse-cast.interface';
@@ -190,4 +192,10 @@ export class MovieController {
   async delete(@Param('id') id: string) {
     return this.movieService.delete(id);
   }
+
+  // =============================================
+  // cast related
+  //==============================================
+
+  
 }

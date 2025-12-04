@@ -182,21 +182,39 @@ export class MovieService {
       // ---------------------------------------
       // FILE EXTRACTION
       // ---------------------------------------
-      const movieThumbnail = files.find((f) => f.fieldname === 'movie_thumbnail');
+      const movieThumbnail = files.find(
+        (f) => f.fieldname === 'movie_thumbnail',
+      );
       const movieTrailer = files.find((f) => f.fieldname === 'movie_trailer');
       const videoFile = files.find((f) => f.fieldname === 'video');
-      const directorThumb = files.find((f) => f.fieldname === 'director_thumbnail');
-      const castThumbFiles = files.filter((f) => f.fieldname.startsWith('cast_'));
+      const directorThumb = files.find(
+        (f) => f.fieldname === 'director_thumbnail',
+      );
+      const castThumbFiles = files.filter((f) =>
+        f.fieldname.startsWith('cast_'),
+      );
 
       // ---------------------------------------
       // PARSE CAST JSON (OPTIONAL)
       // ---------------------------------------
-      let parsedCast = [];
+
+      // new cast
+      let parsedNewCast = [];
       if (dto.cast) {
         try {
-          parsedCast = JSON.parse(dto.cast);
+          parsedNewCast = JSON.parse(dto.cast);
         } catch {
           throw new BadRequestException('Invalid cast JSON format');
+        }
+      }
+
+      // update cast
+      let parsedCastUpdate = [];
+      if (dto.cast_update) {
+        try {
+          parsedCastUpdate = JSON.parse(dto.cast_update);
+        } catch {
+          throw new BadRequestException('Invalid cast update JSON format');
         }
       }
 
@@ -335,8 +353,8 @@ export class MovieService {
       // NEW CAST INSERT (ONLY ADD, NOT DELETE OLD)
       // ---------------------------------------
       const newCastData =
-        parsedCast.length > 0
-          ? parsedCast.map((c) => {
+        parsedNewCast.length > 0
+          ? parsedNewCast.map((c) => {
               const thumbnail = uploadedCastThumbs.get(c.key) || null;
 
               return {
@@ -348,6 +366,60 @@ export class MovieService {
             })
           : [];
 
+      // ---------------------------
+      // prepare cast updates
+      // ---------------------------
+      const preparedCastUpdates = [];
+
+      for (const updateItem of parsedCastUpdate) {
+
+        const castId = updateItem.id;
+        const castKey = updateItem.key; 
+
+        const oldCast = existingMovie.casts.find((c) => c.id === castId);
+
+        if (
+          !oldCast ||
+          (dto.cast_delete_ids && dto.cast_delete_ids.includes(castId))
+        ) {
+          continue;
+        }
+
+        let updatedThumbnailName = oldCast.cast_thumbnail;
+
+       
+        if (castKey) {
+          const updateFile = files.find((f) => f.fieldname === castKey);
+
+          if (updateFile) {
+           
+            if (oldCast.cast_thumbnail) {
+              await SojebStorage.delete(
+                `${appConfig().storageUrl.cast}/${oldCast.cast_thumbnail}`,
+              );
+            }
+
+          
+            updatedThumbnailName =
+              StringHelper.randomString() + '_' + updateFile.originalname;
+            await SojebStorage.put(
+              `${appConfig().storageUrl.cast}/${updatedThumbnailName}`,
+              updateFile.buffer,
+            );
+          }
+        }
+
+       
+        preparedCastUpdates.push({
+          where: { id: castId },
+          data: {
+            name: updateItem.name ?? oldCast.name,
+            description: updateItem.description ?? oldCast.description,
+            cast_thumbnail: updatedThumbnailName,
+          },
+        });
+      }
+
       // ---------------------------------------
       // SAVE ALL CHANGES
       // ---------------------------------------
@@ -356,6 +428,12 @@ export class MovieService {
         if (newCastData.length > 0) {
           await tx.cast.createMany({ data: newCastData });
         }
+
+        // update cast
+          for (const updateOp of preparedCastUpdates) {
+        await tx.cast.update(updateOp);
+      }
+
 
         // update movie main data
         await tx.movie.update({
@@ -439,12 +517,10 @@ export class MovieService {
       throw new NotFoundException('Movie not found');
     }
 
-  
     const getUrl = (path: string, fileName: string | null) => {
       return fileName ? SojebStorage.url(`${path}/${fileName}`) : null;
     };
 
-   
     const movieThumbnailUrl = getUrl(
       appConfig().storageUrl.movie,
       movie.movie_thumbnail,
@@ -459,7 +535,6 @@ export class MovieService {
       movie.director_thumbnail,
     );
 
-   
     const castsWithUrls = movie.casts.map((cast) => ({
       ...cast,
       cast_thumbnail_url: getUrl(
@@ -468,17 +543,15 @@ export class MovieService {
       ),
     }));
 
-    
     const formattedMovie = {
       ...movie,
 
-     
       movie_thumbnail_url: movieThumbnailUrl,
       movie_trailer_url: movieTrailerUrl,
       video_url: videoUrl,
       director_thumbnail_url: directorThumbnailUrl,
 
-      casts: castsWithUrls, 
+      casts: castsWithUrls,
     };
 
     return {

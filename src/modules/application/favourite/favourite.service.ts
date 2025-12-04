@@ -72,94 +72,95 @@ export class FavouriteService {
 
   // *Get all favourites
   async findAll(userId: string, category?: string) {
-    const isAll = !category || category === 'all';
+    const isAll = !category || category === 'all';
 
-    const favourites = await this.prisma.favorite.findMany({
-      where: {
-        user_id: userId,
-        ...(isAll
-          ? {}
-          : {
-              OR: [
-                { movie: { category_id: category } },
-                { series: { category_id: category } },
-              ],
-            }),
-      },
-      include: {
-        movie: {
-          select: {
-            id: true,
-            title: true,
-            movie_thumbnail: true,
-            release_date: true,
-            genres: true,
-            category_id: true,
-          },
-        },
-        series: {
-          select: {
-            id: true,
-            title: true,
-            series_thumbnail: true,
-            release_date: true,
-            genres: true,
-            category_id: true,
-          },
-        },
-      },
-      orderBy: { created_at: 'desc' },
-    });
+    const favourites = await this.prisma.favorite.findMany({
+      where: {
+        user_id: userId,
+        ...(isAll
+          ? {}
+          : {
+              OR: [
+                { movie: { category_id: category } },
+                { series: { category_id: category } },
+              ],
+            }),
+      },
+      include: {
+        movie: {
+          select: {
+            id: true,
+            title: true,
+            movie_thumbnail: true,
+            release_date: true,
+            genres: true,
+            category_id: true,
+          },
+        },
+        series: {
+          select: {
+            id: true,
+            title: true,
+            series_thumbnail: true,
+            release_date: true,
+            genres: true,
+            category_id: true,
+          },
+        },
+      },
+      orderBy: { created_at: 'desc' },
+    });
 
-    if (favourites.length === 0) {
-      return {
-        success: true,
-        message: isAll
-          ? 'No favourites found'
-          : 'No favourites found for this category',
-        data: [],
-      };
-    }
+    if (favourites.length === 0) {
+      return {
+        success: true,
+        message: isAll
+          ? 'No favourites found'
+          : 'No favourites found for this category',
+        data: [],
+      };
+    }
 
-    const formatted = favourites.map((fav) => {
-      const isMovie = fav.movie !== null;
-      const content = isMovie ? fav.movie : fav.series;
+    const formatted = favourites.map((fav) => {
+      const isMovie = fav.movie !== null;
+      const content = isMovie ? fav.movie : fav.series;
 
-      let url = null;
-      if (content) {
-        const storagePath = isMovie
-          ? appConfig().storageUrl.movie
-          : appConfig().storageUrl.series;
+      let url = null;
+      if (content) {
+        const storagePath = isMovie
+          ? appConfig().storageUrl.movie
+          : appConfig().storageUrl.series;
 
-        const thumbnailName = isMovie
-          ? fav.movie!.movie_thumbnail
-          : fav.series!.series_thumbnail;
+        const thumbnailName = isMovie
+          ? fav.movie!.movie_thumbnail
+          : fav.series!.series_thumbnail;
 
-        if (thumbnailName) {
-          url = SojebStorage.url(`${storagePath}/${thumbnailName}`);
-        }
-      }
+        if (thumbnailName) {
+          url = SojebStorage.url(`${storagePath}/${thumbnailName}`);
+        }
+      }
 
-      return {
-        id: content?.id,
-        type: isMovie ? 'movie' : 'series',
-        title: content?.title,
-        thumbnail: isMovie
-          ? fav.movie?.movie_thumbnail
-          : fav.series?.series_thumbnail,
-        url: url,
-        release_date: content?.release_date,
-        genres: content?.genres || [],
-        category_id: content?.category_id,
-      };
-    });
+      return {
+        id: fav.id, // Ekhane Favourite table-er ID dewa holo
+        content_id: content?.id, // Movie/Series-er ID alada field-e dewa holo
+        type: isMovie ? 'movie' : 'series',
+        title: content?.title,
+        thumbnail: isMovie
+          ? fav.movie?.movie_thumbnail
+          : fav.series?.series_thumbnail,
+        url: url,
+        release_date: content?.release_date,
+        genres: content?.genres || [],
+        category_id: content?.category_id,
+      };
+    });
 
-    return {
-      success: true,
-      message: 'Favourites retrieved successfully',
-      data: formatted,
-    };
-  }
+    return {
+      success: true,
+      message: 'Favourites retrieved successfully',
+      data: formatted,
+    };
+  }
 
   // *Remove a favourite
   async remove(id: string, userId: string) {
