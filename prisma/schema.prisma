@@ -674,6 +674,6 @@ model Episode {
   series_id String?
   series    Series? @relation(fields: [series_id], references: [id], onDelete: Cascade)
 
-  @@unique([series_id, episode_number])
+  @@unique([series_id, id])
   @@map("episodes")
 }

@@ -11,6 +11,7 @@ import {
   Req,
   UploadedFiles,
   BadRequestException,
+  Query,
 } from '@nestjs/common';
 import { SeriesService } from './series.service';
 import { CreateSeriesDto } from './dto/create-series.dto';
@@ -19,6 +20,7 @@ import {
   ApiBearerAuth,
   ApiConsumes,
   ApiOperation,
+  ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from 'src/modules/auth/guards/jwt-auth.guard';
@@ -27,6 +29,7 @@ import { RolesGuard } from 'src/common/guard/role/roles.guard';
 import { Roles } from 'src/common/guard/role/roles.decorator';
 import { Role } from 'src/common/guard/role/role.enum';
 import { CreateSeasonEpisodeDto } from './dto/create-season-episode.dto';
+import { AddEpisodesDto } from './dto/add-episode.dto';
 
 @ApiBearerAuth()
 @ApiTags('Admin/Series')
@@ -149,9 +152,7 @@ export class SeriesController {
   // Add season by seriesId
   @Post(':seriesId/season')
   @ApiConsumes('multipart/form-data')
-  @ApiOperation({
-    summary: 'Add a new Season and its Episodes to an existing Series',
-  })
+  @ApiOperation({ summary: 'Add a new Season and its Episodes to an existing Series' })
   @UseInterceptors(AnyFilesInterceptor())
   async addSeasonToSeries(
     @Param('seriesId') seriesId: string,
@@ -160,7 +161,6 @@ export class SeriesController {
     @UploadedFiles() files: Array<Express.Multer.File>,
   ) {
     try {
-      console.log(dto.episodes);
       // 1. Parse DTO strings
       const parsedEpisodes = JSON.parse(dto.episodes);
       const parsedSeasonInfo = JSON.parse(dto.season_info);
@@ -219,6 +219,78 @@ export class SeriesController {
       return {
         success: false,
         message: 'An error occurred while adding the season.',
+      };
+    }
+  }
+
+  // Add episodes under series/season by seriesId/seasonId
+  @Post('episodes') // New route without mandatory seriesId in URL
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: 'Add Episodes to an existing Series or Season' })
+  @ApiQuery({ name: 'seriesId', description: 'The ID of the series (required if seasonId is absent)', required: false })
+  @ApiQuery({ name: 'seasonId', description: 'The ID of the season (required if seriesId is absent)', required: false })
+  @UseInterceptors(AnyFilesInterceptor())
+  async addEpisodes(
+    @Query('seriesId') seriesId: string, // Get seriesId from query
+    @Query('seasonId') seasonId: string, // Get seasonId from query
+    @Body() dto: AddEpisodesDto,
+    @UploadedFiles() files: Array<Express.Multer.File>,
+  ) {
+    try {
+      // 1. Validation for IDs
+      if (!seriesId && !seasonId) {
+        return {
+          success: false,
+          message: 'Either seriesId or seasonId must be provided.',
+        };
+      }
+      
+      // 2. Parse DTO strings
+      const parsedEpisodes = JSON.parse(dto.episodes);
+
+      // 3. Basic Validation
+      if (!parsedEpisodes || parsedEpisodes.length === 0) {
+        return {
+          success: false,
+          message: 'At least one episode is required.',
+        };
+      }
+
+      // 4. File Mapping for Episodes
+      const episodeFilesMap = new Map<
+        string,
+        { thumbnail?: Express.Multer.File; video?: Express.Multer.File }
+      >();
+
+      for (const file of files) {
+        const { fieldname } = file;
+        if (fieldname.startsWith('episode_')) {
+          const parts = fieldname.split('_');
+          const key = parts[1];
+          const type = parts[2] as 'thumbnail' | 'video';
+
+          if (!episodeFilesMap.has(key)) {
+            episodeFilesMap.set(key, {});
+          }
+          const pair = episodeFilesMap.get(key);
+          if (pair) pair[type] = file;
+        }
+      }
+
+      // 5. Call Service
+      const result = await this.seriesService.addEpisodesToContainer(
+        seriesId,
+        seasonId,
+        parsedEpisodes,
+        episodeFilesMap,
+      );
+
+      return result;
+    } catch (error) {
+      console.error('Error adding episodes:', error);
+      return {
+        success: false,
+        message: 'An error occurred while adding episodes.',
       };
     }
   }
