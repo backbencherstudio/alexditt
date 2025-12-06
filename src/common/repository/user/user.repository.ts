@@ -222,12 +222,12 @@ export class UserRepository {
 
         const userData = { email, name, phone_number, gender, description,password };
         
-        // if (password) {
-        //   userData['password'] = await bcrypt.hash(
-        //     password,
-        //     appConfig().security.salt,
-        //   );
-        // }
+        if (password) {
+          userData['password'] = await bcrypt.hash(
+            password,
+            appConfig().security.salt,
+          );
+        }
 
         const user = await tx.user.create({
           data: userData,

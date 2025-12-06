@@ -32,8 +32,7 @@ export class MovieService {
     castThumbnailsMap: Map<string, Express.Multer.File>,
     directorThumbnailFile?: Express.Multer.File,
   ) {
-    try {
-      const movieThumbnailFileName = `${StringHelper.randomString()}_${movieThumbnailFile.originalname}`;
+    try {      const movieThumbnailFileName = `${StringHelper.randomString()}_${movieThumbnailFile.originalname}`;
       await SojebStorage.put(
         `${appConfig().storageUrl.movie}/${movieThumbnailFileName}`,
         movieThumbnailFile.buffer,
@@ -72,6 +71,8 @@ export class MovieService {
         );
         uploadedCastThumbnails.set(key, castThumbnailName);
       }
+
+
 
       return await this.prisma.$transaction(async (tx) => {
         const castCreateData = parsedCast.map((castMember) => {

@@ -610,22 +610,6 @@ export class SeriesService {
         };
       }
 
-      // --- FIX START: Calculate the next sequential episode number ---
-
-      // 2. Find the highest existing episode number for this series
-      const maxEpisode = await this.prisma.episode.aggregate({
-        where: { series_id: seriesId },
-        _max: {
-          episode_number: true,
-        },
-      });
-
-      // Determine the starting episode number for the new season
-      const lastEpisodeNumber = maxEpisode._max.episode_number || 0;
-      let nextEpisodeNumber = lastEpisodeNumber + 1;
-
-      // -----------------------------------------------------------
-
       // 3. Upload Season Thumbnail
       const seasonThumbnailName = `${StringHelper.randomString()}_${seasonThumbnailFile.originalname}`;
       await SojebStorage.put(
@@ -690,14 +674,10 @@ export class SeriesService {
             );
           }
 
-          // Use the calculated sequential episode number
-          const episodeNumberToUse = nextEpisodeNumber;
-          nextEpisodeNumber++; // Increment the counter for the next episode
-
           await tx.episode.create({
             data: {
               // Now using the unique sequential number instead of the DTO's episode_number
-              episode_number: episodeNumberToUse,
+              episode_number: episode.episode_number,
               title: episode.title,
               description: episode.description,
               duration: Number(episode.duration),
@@ -728,5 +708,151 @@ export class SeriesService {
           'An unexpected error occurred while adding season and episodes.',
       };
     }
+  }
+
+  // Add new episodes under series/season with seriesId/seasonId
+  async addEpisodesToContainer(
+    seriesId: string | undefined,
+    seasonId: string | undefined,
+    parsedEpisodes: any[],
+    episodeFilesMap: Map<
+      string,
+      { thumbnail?: Express.Multer.File; video?: Express.Multer.File }
+    >,
+  ) {
+    let finalSeriesId: string;
+    let finalSeasonId: string | null = null;
+    let seriesTitle: string;
+    try {
+      if (seasonId) {
+        const season = await this.prisma.season.findUnique({
+          where: { id: seasonId },
+          select: { series_id: true, series: { select: { title: true } } },
+        });
+
+        if (!season) {
+          return {
+            success: false,
+            message: `Season with ID "${seasonId}" not found.`,
+          };
+        }
+        finalSeriesId = season.series_id;
+        finalSeasonId = seasonId;
+        seriesTitle = season.series.title;
+      } else if (seriesId) {
+        // If only seriesId is provided, use it and try to find the latest season
+        const series = await this.prisma.series.findUnique({
+          where: { id: seriesId },
+          select: { id: true, title: true },
+        });
+        if (!series) {
+          return {
+            success: false,
+            message: `Series with ID "${seriesId}" not found.`,
+          };
+        }
+        finalSeriesId = series.id;
+        seriesTitle = series.title;
+
+        // Try to find the latest existing season to connect the episodes to
+        const latestSeason = await this.prisma.season.findFirst({
+          where: { series_id: finalSeriesId },
+          orderBy: { created_at: 'desc' },
+          select: { id: true },
+        });
+        finalSeasonId = latestSeason?.id || null; // If no season exists, it remains null
+      } else {
+        // Should be caught by controller validation, but safety check here
+        return { success: false, message: 'Missing Series or Season ID.' };
+      }
+    } catch (error) {
+      console.error('ID Resolution Error:', error);
+      return {
+        success: false,
+        message: 'Failed to resolve Series/Season IDs.',
+      };
+    }
+
+    const uploadedEpisodeFiles = new Map<
+      string,
+      { thumbnail?: string; video?: string }
+    >();
+    for (const [key, filePair] of episodeFilesMap.entries()) {
+      const uploadedPair: { thumbnail?: string; video?: string } = {};
+
+      // Upload Episode Thumbnail
+      if (filePair.thumbnail) {
+        const thumbName = `${StringHelper.randomString()}_${filePair.thumbnail.originalname}`;
+        // Removed mimetype argument to fix TS2554 error, assuming SojebStorage is updated elsewhere
+        await SojebStorage.put(
+          `${appConfig().storageUrl.episode}/${thumbName}`,
+          filePair.thumbnail.buffer,
+        );
+        uploadedPair.thumbnail = thumbName;
+      }
+
+      // Upload Episode Video
+      if (filePair.video) {
+        const videoName = `${StringHelper.randomString()}_${filePair.video.originalname}`;
+        // Removed mimetype argument to fix TS2554 error, assuming SojebStorage is updated elsewhere
+        await SojebStorage.put(
+          `${appConfig().storageUrl.episode}/${videoName}`,
+          filePair.video.buffer,
+        );
+        uploadedPair.video = videoName;
+      }
+      uploadedEpisodeFiles.set(key, uploadedPair);
+    }
+
+    // 4. Database Transaction
+    return await this.prisma
+      .$transaction(async (tx) => {
+        let episodesAdded = 0;
+
+        for (const episode of parsedEpisodes) {
+          const files = uploadedEpisodeFiles.get(episode.key);
+
+          if (!files?.video) {
+            throw new Error(
+              `Video file for episode key "${episode.key}" is missing.`,
+            );
+          }
+
+          await tx.episode.create({
+            data: {
+              episode_number: episode.episode_number,
+              title: episode.title,
+              description: episode.description,
+              duration: Number(episode.duration),
+              release_date: episode.release_date,
+              episode_thumbnails: files?.thumbnail || null,
+              episode_videos: files.video,
+
+              // Connect to the determined Series
+              series: { connect: { id: finalSeriesId } },
+
+              // Connect to the determined Season (if a season ID was found/provided)
+              ...(finalSeasonId && {
+                season: { connect: { id: finalSeasonId } },
+              }),
+            },
+          });
+          episodesAdded++;
+        }
+
+        return {
+          success: true,
+          message: `${episodesAdded} episodes added successfully to series "${seriesTitle}" (Season ID: ${finalSeasonId || 'N/A'}).`,
+          data: { seriesId: finalSeriesId, seasonId: finalSeasonId },
+        };
+      })
+      .catch((error) => {
+        // Catch transaction error
+        console.error('Transaction failed during episode addition:', error);
+        return {
+          success: false,
+          message: `Database operation failed: ${error.message || 'Check logs for details.'}`,
+        };
+      });
   }
 }
