@@ -152,7 +152,9 @@ export class SeriesController {
   // Add season by seriesId
   @Post(':seriesId/season')
   @ApiConsumes('multipart/form-data')
-  @ApiOperation({ summary: 'Add a new Season and its Episodes to an existing Series' })
+  @ApiOperation({
+    summary: 'Add a new Season and its Episodes to an existing Series',
+  })
   @UseInterceptors(AnyFilesInterceptor())
   async addSeasonToSeries(
     @Param('seriesId') seriesId: string,
@@ -227,8 +229,16 @@ export class SeriesController {
   @Post('episodes') // New route without mandatory seriesId in URL
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Add Episodes to an existing Series or Season' })
-  @ApiQuery({ name: 'seriesId', description: 'The ID of the series (required if seasonId is absent)', required: false })
-  @ApiQuery({ name: 'seasonId', description: 'The ID of the season (required if seriesId is absent)', required: false })
+  @ApiQuery({
+    name: 'seriesId',
+    description: 'The ID of the series (required if seasonId is absent)',
+    required: false,
+  })
+  @ApiQuery({
+    name: 'seasonId',
+    description: 'The ID of the season (required if seriesId is absent)',
+    required: false,
+  })
   @UseInterceptors(AnyFilesInterceptor())
   async addEpisodes(
     @Query('seriesId') seriesId: string, // Get seriesId from query
@@ -244,7 +254,7 @@ export class SeriesController {
           message: 'Either seriesId or seasonId must be provided.',
         };
       }
-      
+
       // 2. Parse DTO strings
       const parsedEpisodes = JSON.parse(dto.episodes);
 
@@ -301,9 +311,27 @@ export class SeriesController {
     return this.seriesService.getAllSeries();
   }
 
+  // Delete a season
+  @Delete('season/:id')
+  async deleteASeson(@Param('id') id: string) {
+    return this.seriesService.deleteASesoan(id);
+  }
+
+  // Delete a episodes
+  @Delete('episode/:id')
+  async deleteAEpisode(@Param('id') id: string) {
+    return this.seriesService.deleteAEpisode(id);
+  }
+
   // *get series delete
   @Delete(':id')
   async deleteSeries(@Param('id') id: string) {
     return this.seriesService.deleteSeries(id);
+  }
+
+  // Get a series details by seriesId
+  @Get(':id')
+  async getASeries(@Param('id') id: string) {
+    return this.seriesService.getASeries(id);
   }
 }

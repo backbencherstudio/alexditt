@@ -117,15 +117,11 @@ export class SeriesService {
             release_date: dto.release_date,
             status: dto.status,
 
-            // --- FIX START ---
-            // Replaced 'categories' array with 'category' relation connection
-            // Ensure schema field name is 'category' (or 'categorie' if you kept the typo)
             category: {
               connect: {
                 id: dto.category_id,
               },
             },
-            // --- FIX END ---
 
             genres: dto.genres,
             series_thumbnail: seriesThumbnailName,
@@ -854,5 +850,274 @@ export class SeriesService {
           message: `Database operation failed: ${error.message || 'Check logs for details.'}`,
         };
       });
+  }
+
+  //Delete a season
+  async deleteASesoan(id: string) {
+    try {
+      const seasonToDelete = await this.prisma.season.findUnique({
+        where: { id },
+        include: {
+          episodes: {
+            select: {
+              episode_thumbnails: true,
+              episode_videos: true,
+            },
+          },
+        },
+      });
+
+      console.log(seasonToDelete);
+
+      if (!seasonToDelete) {
+        return {
+          success: false,
+          message: `Season with ID "${id}" not found.`,
+        };
+      }
+
+      //Collect all file names to delete from storage
+      const filesToDelete: { path: string; name: string }[] = [];
+
+      // Add Season Thumbnail
+      if (seasonToDelete.season_thumbnail) {
+        filesToDelete.push({
+          path: appConfig().storageUrl.season,
+          name: seasonToDelete.season_thumbnail,
+        });
+      }
+
+      // Add Episode files (Thumbnails and Videos)
+      for (const episode of seasonToDelete.episodes) {
+        if (episode.episode_videos) {
+          filesToDelete.push({
+            path: appConfig().storageUrl.episode,
+            name: episode.episode_videos,
+          });
+        }
+        if (episode.episode_thumbnails) {
+          filesToDelete.push({
+            path: appConfig().storageUrl.episode,
+            name: episode.episode_thumbnails,
+          });
+        }
+      }
+
+      await this.prisma.$transaction(async (tx) => {
+        await tx.season.delete({ where: { id } });
+
+        const deleteResults = await Promise.allSettled(
+          filesToDelete.map((file) =>
+            SojebStorage.delete(`${file.path}/${file.name}`),
+          ),
+        );
+
+        const failedDeletions = deleteResults.filter(
+          (r) => r.status === 'rejected',
+        );
+        if (failedDeletions.length > 0) {
+          console.warn(
+            `Warning: ${failedDeletions.length} files failed to delete from storage.`,
+            failedDeletions,
+          );
+        }
+      });
+
+      return {
+        success: true,
+        message: `Season "${seasonToDelete.title}" and ${seasonToDelete.episodes.length} episodes deleted successfully.`,
+      };
+    } catch (error) {
+      console.error('Error deleting season and episodes:', error);
+
+      return {
+        success: false,
+        message:
+          'Failed to delete this season due to an unexpected database or storage error.',
+      };
+    }
+  }
+
+  //Delete a episode
+  async deleteAEpisode(id: string) {
+    try {
+      const episodeToDelete = await this.prisma.episode.findUnique({
+        where: { id },
+        select: {
+          title: true,
+          episode_thumbnails: true,
+          episode_videos: true,
+        },
+      });
+
+      if (!episodeToDelete) {
+        return {
+          success: false,
+          message: `Episode with ID "${id}" not found.`,
+        };
+      }
+
+      const filesToDelete: { path: string; name: string }[] = [];
+
+      // Add Episode Video file
+      if (episodeToDelete.episode_videos) {
+        filesToDelete.push({
+          path: appConfig().storageUrl.episode,
+          name: episodeToDelete.episode_videos,
+        });
+      }
+
+      // Add Episode Thumbnail file
+      if (episodeToDelete.episode_thumbnails) {
+        filesToDelete.push({
+          path: appConfig().storageUrl.episode,
+          name: episodeToDelete.episode_thumbnails,
+        });
+      }
+
+      await this.prisma.$transaction(async (tx) => {
+        await tx.episode.delete({ where: { id } });
+
+        const deleteResults = await Promise.allSettled(
+          filesToDelete.map((file) =>
+            SojebStorage.delete(`${file.path}/${file.name}`),
+          ),
+        );
+
+        const failedDeletions = deleteResults.filter(
+          (r) => r.status === 'rejected',
+        );
+        if (failedDeletions.length > 0) {
+          console.warn(
+            `Warning: ${failedDeletions.length} files failed to delete from storage for episode ID ${id}.`,
+          );
+        }
+      });
+
+      return {
+        success: true,
+        message: `Episode "${episodeToDelete.title}" deleted successfully.`,
+      };
+    } catch (error) {
+      console.error('Error deleting episode:', error);
+
+      return {
+        success: false,
+        message:
+          'Failed to delete this episode due to an unexpected database or storage error.',
+      };
+    }
+  }
+
+  // Get a series all details by seriesId
+  async getASeries(id: string) {
+    try {
+      const series = await this.prisma.series.findUnique({
+        where: { id },
+        include: {
+          category: true,
+          casts: true,
+          likeComents: true,
+          favorites: true,
+          seasons: {
+            orderBy: { created_at: 'asc' },
+            include: {
+              episodes: {
+                orderBy: { episode_number: 'asc' },
+              },
+            },
+          },
+        },
+      });
+
+      if (!series) {
+        return {
+          success: false,
+          message: `Series with ID "${id}" not found.`,
+        };
+      }
+
+      // Format all file names to complete URLs
+      const formattedData = this.formatSeriesMedia(series);
+
+      return {
+        success: true,
+        message: 'Series retrieved successfully',
+        data: formattedData,
+      };
+    } catch (error) {
+      console.error('Error fetching series details:', error);
+      return {
+        success: false,
+        message: 'Failed to fetch this series due to an unexpected error.',
+      };
+    }
+  }
+
+  // Private format series service
+  private formatSeriesMedia(series: any): any {
+    const config = appConfig();
+    const formattedSeries = { ...series };
+
+    //Series/Trailer Thumbnails
+    if (formattedSeries.series_thumbnail) {
+      formattedSeries.series_thumbnail = SojebStorage.url(
+        `${config.storageUrl.series}/${formattedSeries.series_thumbnail}`,
+      );
+    }
+    if (formattedSeries.series_trailer) {
+      formattedSeries.series_trailer = SojebStorage.url(
+        `${config.storageUrl.series}/${formattedSeries.series_trailer}`,
+      );
+    }
+
+    //Director Thumbnail
+    if (formattedSeries.director_thumbnail) {
+      formattedSeries.director_thumbnail = SojebStorage.url(
+        `${config.storageUrl.series_director}/${formattedSeries.director_thumbnail}`,
+      );
+    }
+
+    // Cast Thumbnails
+    if (formattedSeries.casts) {
+      formattedSeries.casts = formattedSeries.casts.map((cast) => ({
+        ...cast,
+        cast_thumbnail: cast.cast_thumbnail
+          ? SojebStorage.url(`${config.storageUrl.cast}/${cast.cast_thumbnail}`)
+          : null,
+      }));
+    }
+
+    // Seasons and Episodes
+    if (formattedSeries.seasons) {
+      formattedSeries.seasons = formattedSeries.seasons.map((season) => {
+        // Season Thumbnail
+        if (season.season_thumbnail) {
+          season.season_thumbnail = SojebStorage.url(
+            `${config.storageUrl.season}/${season.season_thumbnail}`,
+          );
+        }
+
+        // Episodes
+        if (season.episodes) {
+          season.episodes = season.episodes.map((episode) => ({
+            ...episode,
+            episode_videos: episode.episode_videos
+              ? SojebStorage.url(
+                  `${config.storageUrl.episode}/${episode.episode_videos}`,
+                )
+              : null,
+            episode_thumbnails: episode.episode_thumbnails
+              ? SojebStorage.url(
+                  `${config.storageUrl.episode}/${episode.episode_thumbnails}`,
+                )
+              : null,
+          }));
+        }
+        return season;
+      });
+    }
+
+    return formattedSeries;
   }
 }
