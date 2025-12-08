@@ -119,7 +119,6 @@ export class DashboradService {
       where.status = status;
     }
 
-   
     const [movieMetadata, seriesMetadata, totalMovieItems, totalSeriesItems] =
       await Promise.all([
         this.prisma.movie.findMany({
@@ -158,15 +157,14 @@ export class DashboradService {
     const [paginatedMovies, paginatedSeries] = await Promise.all([
       this.prisma.movie.findMany({
         where: { id: { in: movieIds } },
-        include: { category: { select: { category_name: true } } }, 
+        include: { category: { select: { category_name: true } } },
       }),
       this.prisma.series.findMany({
         where: { id: { in: seriesIds } },
-        include: { category: { select: { category_name: true } } }, 
+        include: { category: { select: { category_name: true } } },
       }),
     ]);
 
-   
     const finalPaginatedContent = paginatedMetadata.map((metadata) => {
       if (metadata.type === 'Movie') {
         return paginatedMovies.find((m) => m.id === metadata.id);
@@ -174,7 +172,6 @@ export class DashboradService {
       return paginatedSeries.find((s) => s.id === metadata.id);
     });
 
-    
     const formattedContent = finalPaginatedContent
       .filter(Boolean)
       .map((content: any) => ({
@@ -191,7 +188,7 @@ export class DashboradService {
         title: content.title,
         genre: content.genres.join(', '),
         category: content.category?.category_name || null,
-        duration: content.duration || 'N/A (Series)',
+        duration: content.duration || null,
         type: content.movie_thumbnail ? 'Movie' : 'Series',
         status: content.status,
         uploaded: content.created_at,

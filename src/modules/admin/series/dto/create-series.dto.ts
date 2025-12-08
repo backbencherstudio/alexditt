@@ -43,7 +43,14 @@ export class CreateSeriesDto {
 
   @IsArray()
   @IsEnum(Genre, { each: true })
-  @Transform(({ value }) => (typeof value === 'string' ? [value] : value))
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (typeof value === 'string' && value.includes(',')) {
+      return value.split(',').map((item) => item.trim());
+    }
+    if (typeof value === 'string') return [value];
+    return value;
+  })
   genres?: Genre[];
 
   @IsString()
