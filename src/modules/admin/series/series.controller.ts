@@ -137,17 +137,85 @@ export class SeriesController {
     }
   }
 
-  // *update a series
-  @Patch(':id')
+  //Update an existing Series and its nested data
+  @Patch(':seriesId')
   @ApiConsumes('multipart/form-data')
+  @ApiOperation({
+    summary:
+      'Update Series details including Nested Data (Seasons, Casts, Episodes)',
+  })
   @UseInterceptors(AnyFilesInterceptor())
-  async updateSeries(
-    @Param('id') id: string,
+  async updateASeries(
+    @Param('seriesId') seriesId: string,
     @Body() dto: UpdateSeriesDto,
     @UploadedFiles() files: Array<Express.Multer.File>,
   ) {
-    return this.seriesService.updateSeries(id, dto, files);
+    try {
+      // 1. Prepare data
+      const castUpdates = dto.cast_updates
+        ? JSON.parse(dto.cast_updates)
+        : undefined;
+      const episodeUpdates = dto.episode_updates
+        ? JSON.parse(dto.episode_updates)
+        : undefined;
+      const seasonUpdates = dto.season_updates
+        ? JSON.parse(dto.season_updates)
+        : undefined; // ✅ New
+
+      // 2. Separate files
+      const seriesThumbnailFile = files.find(
+        (f) => f.fieldname === 'series_thumbnail',
+      );
+      const seriesTrailerFile = files.find(
+        (f) => f.fieldname === 'series_trailer',
+      );
+      const directorThumbnailFile = files.find(
+        (f) => f.fieldname === 'director_thumbnail',
+      );
+
+      // Map for dynamic updates
+      const castThumbnailFiles = files.filter((f) =>
+        f.fieldname.startsWith('cast_'),
+      );
+      const seasonThumbnailFiles = files.filter((f) =>
+        f.fieldname.startsWith('season_'),
+      ); // ✅ New
+
+      // 3. Call Service
+      const result = await this.seriesService.updateASeries(
+        seriesId,
+        dto,
+        castUpdates,
+        seasonUpdates, // ✅ Pass season updates
+        episodeUpdates,
+        seriesThumbnailFile,
+        seriesTrailerFile,
+        directorThumbnailFile,
+        castThumbnailFiles,
+        seasonThumbnailFiles, // ✅ Pass season files
+      );
+
+      return result;
+    } catch (error) {
+      console.error('Error updating series:', error);
+      return {
+        success: false,
+        message: 'An error occurred while updating the series.',
+      };
+    }
   }
+
+  // *update a series
+  // @Patch(':id')
+  // @ApiConsumes('multipart/form-data')
+  // @UseInterceptors(AnyFilesInterceptor())
+  // async updateSeries(
+  //   @Param('id') id: string,
+  //   @Body() dto: UpdateSeriesDto,
+  //   @UploadedFiles() files: Array<Express.Multer.File>,
+  // ) {
+  //   return this.seriesService.updateSeries(id, dto, files);
+  // }
 
   // Add season by seriesId
   @Post(':seriesId/season')
@@ -226,7 +294,7 @@ export class SeriesController {
   }
 
   // Add episodes under series/season by seriesId/seasonId
-  @Post('episodes') // New route without mandatory seriesId in URL
+  @Post('episodes')
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Add Episodes to an existing Series or Season' })
   @ApiQuery({
