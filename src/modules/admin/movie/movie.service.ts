@@ -19,7 +19,7 @@ export class MovieService {
   constructor(
     private prisma: PrismaService,
     private readonly messageGateway: MessageGateway,
-  ) {}
+  ) { }
 
   // *create movie
   async createAMovie(
@@ -32,7 +32,8 @@ export class MovieService {
     castThumbnailsMap: Map<string, Express.Multer.File>,
     directorThumbnailFile?: Express.Multer.File,
   ) {
-    try {      const movieThumbnailFileName = `${StringHelper.randomString()}_${movieThumbnailFile.originalname}`;
+    try {
+      const movieThumbnailFileName = `${StringHelper.randomString()}_${movieThumbnailFile.originalname}`;
       await SojebStorage.put(
         `${appConfig().storageUrl.movie}/${movieThumbnailFileName}`,
         movieThumbnailFile.buffer,
@@ -129,8 +130,8 @@ export class MovieService {
           create_at: movie.created_at,
           movie_thumbnail: movie.movie_thumbnail
             ? SojebStorage.url(
-                `${appConfig().storageUrl.movie}/${movie.movie_thumbnail}`,
-              )
+              `${appConfig().storageUrl.movie}/${movie.movie_thumbnail}`,
+            )
             : null,
           status: 'New Release',
         };
@@ -222,25 +223,25 @@ export class MovieService {
       // ---------------------------------------
       // DELETE SPECIFIC CAST RECORDS + OLD FILES
       // ---------------------------------------
-      if (dto.cast_delete_ids && dto.cast_delete_ids.length > 0) {
-        const deleteCasts = existingMovie.casts.filter((c) =>
-          dto.cast_delete_ids.includes(c.id),
+      // ---------------------------------------
+      // DELETE SPECIFIC CAST RECORD + OLD FILE
+      // ---------------------------------------
+      if (dto.cast_delete_id) {
+        const castToDelete = existingMovie.casts.find(
+          (c) => c.id === dto.cast_delete_id,
         );
 
-        for (const c of deleteCasts) {
-          if (c.cast_thumbnail) {
+        if (castToDelete) {
+          if (castToDelete.cast_thumbnail) {
             await SojebStorage.delete(
-              `${appConfig().storageUrl.cast}/${c.cast_thumbnail}`,
+              `${appConfig().storageUrl.cast}/${castToDelete.cast_thumbnail}`,
             );
           }
-        }
 
-        await this.prisma.cast.deleteMany({
-          where: {
-            id: { in: dto.cast_delete_ids },
-            movie_id: id,
-          },
-        });
+          await this.prisma.cast.delete({
+            where: { id: dto.cast_delete_id },
+          });
+        }
       }
 
       // ---------------------------------------
@@ -356,15 +357,15 @@ export class MovieService {
       const newCastData =
         parsedNewCast.length > 0
           ? parsedNewCast.map((c) => {
-              const thumbnail = uploadedCastThumbs.get(c.key) || null;
+            const thumbnail = uploadedCastThumbs.get(c.key) || null;
 
-              return {
-                movie_id: id,
-                name: c.name,
-                description: c.description,
-                cast_thumbnail: thumbnail,
-              };
-            })
+            return {
+              movie_id: id,
+              name: c.name,
+              description: c.description,
+              cast_thumbnail: thumbnail,
+            };
+          })
           : [];
 
       // ---------------------------
@@ -375,32 +376,32 @@ export class MovieService {
       for (const updateItem of parsedCastUpdate) {
 
         const castId = updateItem.id;
-        const castKey = updateItem.key; 
+        const castKey = updateItem.key;
 
         const oldCast = existingMovie.casts.find((c) => c.id === castId);
 
         if (
           !oldCast ||
-          (dto.cast_delete_ids && dto.cast_delete_ids.includes(castId))
+          (dto.cast_delete_id && dto.cast_delete_id === castId)
         ) {
           continue;
         }
 
         let updatedThumbnailName = oldCast.cast_thumbnail;
 
-       
+
         if (castKey) {
           const updateFile = files.find((f) => f.fieldname === castKey);
 
           if (updateFile) {
-           
+
             if (oldCast.cast_thumbnail) {
               await SojebStorage.delete(
                 `${appConfig().storageUrl.cast}/${oldCast.cast_thumbnail}`,
               );
             }
 
-          
+
             updatedThumbnailName =
               StringHelper.randomString() + '_' + updateFile.originalname;
             await SojebStorage.put(
@@ -410,7 +411,7 @@ export class MovieService {
           }
         }
 
-       
+
         preparedCastUpdates.push({
           where: { id: castId },
           data: {
@@ -431,9 +432,9 @@ export class MovieService {
         }
 
         // update cast
-          for (const updateOp of preparedCastUpdates) {
-        await tx.cast.update(updateOp);
-      }
+        for (const updateOp of preparedCastUpdates) {
+          await tx.cast.update(updateOp);
+        }
 
 
         // update movie main data

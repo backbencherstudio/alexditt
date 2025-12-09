@@ -192,10 +192,4 @@ export class MovieController {
   async delete(@Param('id') id: string) {
     return this.movieService.delete(id);
   }
-
-  // =============================================
-  // cast related
-  //==============================================
-
-  
 }

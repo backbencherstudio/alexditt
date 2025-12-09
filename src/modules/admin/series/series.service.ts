@@ -1,6 +1,11 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { CreateSeriesDto } from './dto/create-series.dto';
-import { UpdateSeriesDto } from './dto/update-series.dto';
+import {
+  UpdateCastMemberDto,
+  UpdateEpisodeDto,
+  UpdateSeasonDto,
+  UpdateSeriesDto,
+} from './dto/update-series.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { StringHelper } from 'src/common/helper/string.helper';
 import { SojebStorage } from 'src/common/lib/Disk/SojebStorage';
@@ -10,7 +15,7 @@ import { CreateEpisodeDto } from './dto/create-episode.dto';
 
 @Injectable()
 export class SeriesService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) { }
 
   // *create series
   async createASeries(
@@ -193,285 +198,500 @@ export class SeriesService {
     }
   }
 
-  // *update series
-  async updateSeries(
-    id: string,
+  // Update series
+  async updateASeries(
+    seriesId: string,
     dto: UpdateSeriesDto,
-    files: Express.Multer.File[],
+    castUpdates: UpdateCastMemberDto[] | undefined,
+    seasonUpdates: UpdateSeasonDto[] | undefined,
+    episodeUpdates: UpdateEpisodeDto[] | undefined,
+    seriesThumbnailFile: Express.Multer.File | undefined,
+    seriesTrailerFile: Express.Multer.File | undefined,
+    directorThumbnailFile: Express.Multer.File | undefined,
+    castThumbnailFiles: Express.Multer.File[] | undefined,
+    seasonThumbnailFiles: Express.Multer.File[] | undefined,
   ) {
     try {
+      // 1. Check if series exists
       const existingSeries = await this.prisma.series.findUnique({
-        where: { id },
-        include: {
-          casts: true,
-          episodes: true,
-          seasons: true,
-        },
+        where: { id: seriesId },
       });
-
       if (!existingSeries) {
-        return { success: false, message: 'Series not found' };
+        return {
+          success: false,
+          message: `Series with ID "${seriesId}" not found.`,
+        };
       }
 
-      // -------------------------------
-      // PARSE JSON FIELDS
-      // -------------------------------
-      const parsedCast = dto.cast ? JSON.parse(dto.cast) : [];
-      const parsedEpisodes = dto.episodes ? JSON.parse(dto.episodes) : [];
-      const parsedSeasonInfo = dto.season_info
-        ? JSON.parse(dto.season_info)
-        : null;
+      const seriesUpdateData: any = {};
+      if (dto.title !== undefined) seriesUpdateData.title = dto.title;
+      if (dto.description !== undefined)
+        seriesUpdateData.description = dto.description;
+      if (dto.release_date !== undefined)
+        seriesUpdateData.release_date = dto.release_date;
+      if (dto.status !== undefined) seriesUpdateData.status = dto.status;
+      if (dto.director_name !== undefined)
+        seriesUpdateData.director_name = dto.director_name;
+      if (dto.kids_mode !== undefined)
+        seriesUpdateData.kids_mode = dto.kids_mode;
+      if (dto.category_id !== undefined)
+        seriesUpdateData.category = { connect: { id: dto.category_id } };
+      if (dto.genres !== undefined) seriesUpdateData.genres = dto.genres;
 
-      // -------------------------------
-      // MAP FILES
-      // -------------------------------
-      const seriesThumbnailFile = files.find(
-        (f) => f.fieldname === 'series_thumbnail',
-      );
-      const seriesTrailerFile = files.find(
-        (f) => f.fieldname === 'series_trailer',
-      );
-      const directorThumbnailFile = files.find(
-        (f) => f.fieldname === 'director_thumbnail',
-      );
-      const seasonThumbnailFile = files.find(
-        (f) => f.fieldname === 'season_thumbnail',
-      );
-
-      const castThumbnailsMap = new Map<string, Express.Multer.File>();
-      const episodeFilesMap = new Map<
-        string,
-        { thumbnail?: Express.Multer.File; video?: Express.Multer.File }
-      >();
-
-      for (const file of files) {
-        const { fieldname } = file;
-
-        if (fieldname.startsWith('cast_')) {
-          const key = fieldname.replace('cast_', '');
-          castThumbnailsMap.set(key, file);
-        }
-
-        // episode_key_thumbnail or episode_key_video
-        if (fieldname.startsWith('episode_')) {
-          const parts = fieldname.split('_');
-          const key = parts[1];
-          const type = parts[2] as 'thumbnail' | 'video';
-
-          if (!episodeFilesMap.has(key)) {
-            episodeFilesMap.set(key, {});
-          }
-          episodeFilesMap.get(key)![type] = file;
-        }
-      }
-
-      // -------------------------------
-      // FILE UPLOADS
-      // -------------------------------
-      const uploadedCastThumbnails = new Map<string, string>();
-
-      for (const [castId, file] of castThumbnailsMap.entries()) {
+      const config = appConfig();
+      const handleFileUpload = async (
+        file: Express.Multer.File,
+        storagePath: string,
+      ) => {
         const fileName = `${StringHelper.randomString()}_${file.originalname}`;
-        await SojebStorage.put(
-          `${appConfig().storageUrl.cast}/${fileName}`,
-          file.buffer,
+        // Assuming SojebStorage.put handles mimetype if you updated it, otherwise remove 3rd arg
+        await SojebStorage.put(`${storagePath}/${fileName}`, file.buffer);
+        return fileName;
+      };
+
+      if (seriesThumbnailFile)
+        seriesUpdateData.series_thumbnail = await handleFileUpload(
+          seriesThumbnailFile,
+          config.storageUrl.series,
         );
-        uploadedCastThumbnails.set(castId, fileName);
+      if (seriesTrailerFile)
+        seriesUpdateData.series_trailer = await handleFileUpload(
+          seriesTrailerFile,
+          config.storageUrl.series,
+        );
+      if (directorThumbnailFile)
+        seriesUpdateData.director_thumbnail = await handleFileUpload(
+          directorThumbnailFile,
+          config.storageUrl.series_director,
+        );
+
+      const castUpdatesPayloads: { id: string; data: any }[] = [];
+      const castFilesMap = new Map<string, Express.Multer.File>(
+        castThumbnailFiles?.map((f) => [f.fieldname, f]) || [],
+      );
+
+      if (castUpdates?.length) {
+        for (const castUpdate of castUpdates) {
+          if (castUpdate.id) {
+            const castFileKey = castFilesMap.get(
+              `cast_${castUpdate.id}_thumbnail`,
+            );
+            const updatePayload: any = {};
+            if (castUpdate.name !== undefined)
+              updatePayload.name = castUpdate.name;
+            if (castUpdate.description !== undefined)
+              updatePayload.description = castUpdate.description;
+            if (castFileKey)
+              updatePayload.cast_thumbnail = await handleFileUpload(
+                castFileKey,
+                config.storageUrl.cast,
+              );
+
+            if (Object.keys(updatePayload).length > 0) {
+              castUpdatesPayloads.push({
+                id: castUpdate.id,
+                data: updatePayload,
+              });
+            }
+          }
+        }
       }
 
-      const uploadedEpisodeFiles = new Map<
-        string,
-        { thumbnail?: string; video?: string }
-      >();
+      const seasonUpdatesPayloads: { id: string; data: any }[] = [];
+      const seasonFilesMap = new Map<string, Express.Multer.File>(
+        seasonThumbnailFiles?.map((f) => [f.fieldname, f]) || [],
+      );
 
-      for (const [key, pair] of episodeFilesMap.entries()) {
-        const uploaded: { thumbnail?: string; video?: string } = {};
+      if (seasonUpdates?.length) {
+        for (const seasonUpdate of seasonUpdates) {
+          if (seasonUpdate.id) {
+            const seasonFileKey = seasonFilesMap.get(
+              `season_${seasonUpdate.id}_thumbnail`,
+            );
+            const updatePayload: any = {};
 
-        if (pair.thumbnail) {
-          const n = `${StringHelper.randomString()}_${pair.thumbnail.originalname}`;
-          await SojebStorage.put(
-            `${appConfig().storageUrl.episode}/${n}`,
-            pair.thumbnail.buffer,
-          );
-          uploaded.thumbnail = n;
+            if (seasonUpdate.title !== undefined)
+              updatePayload.title = seasonUpdate.title;
+            if (seasonUpdate.release_date !== undefined)
+              updatePayload.release_date = seasonUpdate.release_date;
+
+            if (seasonFileKey) {
+              updatePayload.season_thumbnail = await handleFileUpload(
+                seasonFileKey,
+                config.storageUrl.season,
+              );
+            }
+
+            if (Object.keys(updatePayload).length > 0) {
+              seasonUpdatesPayloads.push({
+                id: seasonUpdate.id,
+                data: updatePayload,
+              });
+            }
+          }
         }
-        if (pair.video) {
-          const n = `${StringHelper.randomString()}_${pair.video.originalname}`;
-          await SojebStorage.put(
-            `${appConfig().storageUrl.episode}/${n}`,
-            pair.video.buffer,
-          );
-          uploaded.video = n;
-        }
-
-        uploadedEpisodeFiles.set(key, uploaded);
       }
 
-      // -------------------------------
-      // UPDATE PROCESS (TRANSACTION)
-      // -------------------------------
-      return await this.prisma.$transaction(async (tx) => {
-        // -------------------------------
-        // UPDATE SERIES MAIN DATA
-        // -------------------------------
-        const updatedSeries = await tx.series.update({
-          where: { id },
-          data: {
-            title: dto.title ?? existingSeries.title,
-            description: dto.description ?? existingSeries.description,
-            kids_mode: dto.kids_mode ?? existingSeries.kids_mode,
-            release_date: dto.release_date ?? existingSeries.release_date,
-            status: dto.status ?? existingSeries.status,
-            genres: dto.genres ?? existingSeries.genres,
+      const episodeUpdatesPayloads: { id: string; data: any }[] = [];
+      if (episodeUpdates?.length) {
+        for (const episodeUpdate of episodeUpdates) {
+          if (episodeUpdate.id) {
+            const updatePayload: any = {};
+            if (episodeUpdate.title !== undefined)
+              updatePayload.title = episodeUpdate.title;
+            if (episodeUpdate.description !== undefined)
+              updatePayload.description = episodeUpdate.description;
+            if (episodeUpdate.duration !== undefined)
+              updatePayload.duration = Number(episodeUpdate.duration);
 
-            ...(dto.category_id && {
-              category: { connect: { id: dto.category_id } },
-            }),
+            if (Object.keys(updatePayload).length > 0) {
+              episodeUpdatesPayloads.push({
+                id: episodeUpdate.id,
+                data: updatePayload,
+              });
+            }
+          }
+        }
+      }
 
-            ...(seriesThumbnailFile && {
-              series_thumbnail: `${StringHelper.randomString()}_${seriesThumbnailFile.originalname}`,
-            }),
+      const updatedSeries = await this.prisma.$transaction(async (tx) => {
+        if (dto.cast_delete_id) {
+          const castToDelete = await tx.cast.findUnique({
+            where: { id: dto.cast_delete_id },
+          });
 
-            ...(seriesTrailerFile && {
-              series_trailer: `${StringHelper.randomString()}_${seriesTrailerFile.originalname}`,
-            }),
+          if (castToDelete) {
+            // Delete associated thumbnail from storage
+            if (castToDelete.cast_thumbnail) {
+              await SojebStorage.delete(
+                `${appConfig().storageUrl.cast}/${castToDelete.cast_thumbnail}`,
+              );
+            }
+            // Delete from database
+            await tx.cast.delete({ where: { id: dto.cast_delete_id } });
+          }
+        }
+        if (Object.keys(seriesUpdateData).length > 0) {
+          await tx.series.update({
+            where: { id: seriesId },
+            data: seriesUpdateData,
+          });
+        }
 
-            ...(directorThumbnailFile && {
-              director_thumbnail: `${StringHelper.randomString()}_${directorThumbnailFile.originalname}`,
-            }),
+        await Promise.all([
+          ...castUpdatesPayloads.map((item) =>
+            tx.cast.update({ where: { id: item.id }, data: item.data }),
+          ),
+          ...seasonUpdatesPayloads.map((item) =>
+            tx.season.update({ where: { id: item.id }, data: item.data }),
+          ),
+          ...episodeUpdatesPayloads.map((item) =>
+            tx.episode.update({ where: { id: item.id }, data: item.data }),
+          ),
+        ]);
+
+        return tx.series.findUnique({
+          where: { id: seriesId },
+          include: {
+            category: true,
+            casts: true,
+            seasons: { include: { episodes: true } },
           },
         });
-
-        // -------------------------------
-        // CAST UPDATE
-        // -------------------------------
-        const castDeleteIds = dto.cast_delete_ids || [];
-
-        if (castDeleteIds.length > 0) {
-          await tx.cast.deleteMany({
-            where: { id: { in: castDeleteIds } },
-          });
-        }
-
-        for (const cast of parsedCast) {
-          if (cast.id) {
-            // UPDATE EXISTING CAST
-            await tx.cast.update({
-              where: { id: cast.id },
-              data: {
-                name: cast.name,
-                description: cast.description,
-                ...(uploadedCastThumbnails.get(cast.id) && {
-                  cast_thumbnail: uploadedCastThumbnails.get(cast.id),
-                }),
-              },
-            });
-          } else {
-            // NEW CAST
-            await tx.cast.create({
-              data: {
-                name: cast.name,
-                description: cast.description,
-                cast_thumbnail: uploadedCastThumbnails.get(cast.key) ?? null,
-                series: { connect: { id } },
-              },
-            });
-          }
-        }
-
-        // -------------------------------
-        // SEASON UPDATE
-        // -------------------------------
-        if (parsedSeasonInfo) {
-          let season = existingSeries.seasons[0];
-
-          if (!season) {
-            season = await tx.season.create({
-              data: {
-                title: parsedSeasonInfo.title,
-                release_date: parsedSeasonInfo.release_date,
-                ...(seasonThumbnailFile && {
-                  season_thumbnail: `${StringHelper.randomString()}_${seasonThumbnailFile.originalname}`,
-                }),
-                series: { connect: { id } },
-              },
-            });
-          } else {
-            await tx.season.update({
-              where: { id: season.id },
-              data: {
-                title: parsedSeasonInfo.title,
-                release_date: parsedSeasonInfo.release_date,
-                ...(seasonThumbnailFile && {
-                  season_thumbnail: `${StringHelper.randomString()}_${seasonThumbnailFile.originalname}`,
-                }),
-              },
-            });
-          }
-        }
-
-        // -------------------------------
-        // EPISODE UPDATE
-        // -------------------------------
-        const episodeDeleteIds = dto.episode_delete_ids || [];
-
-        if (episodeDeleteIds.length > 0) {
-          await tx.episode.deleteMany({
-            where: { id: { in: episodeDeleteIds } },
-          });
-        }
-
-        for (const ep of parsedEpisodes) {
-          const files = uploadedEpisodeFiles.get(ep.key);
-
-          if (ep.id) {
-            // UPDATE EXISTING EPISODE
-            await tx.episode.update({
-              where: { id: ep.id },
-              data: {
-                title: ep.title,
-                episode_number: Number(ep.episode_number),
-                description: ep.description,
-                duration: Number(ep.duration),
-                release_date: ep.release_date,
-                ...(files?.thumbnail && {
-                  episode_thumbnails: files.thumbnail,
-                }),
-                ...(files?.video && {
-                  episode_videos: files.video,
-                }),
-              },
-            });
-          } else {
-            // NEW EPISODE
-            await tx.episode.create({
-              data: {
-                title: ep.title,
-                episode_number: Number(ep.episode_number),
-                description: ep.description,
-                duration: Number(ep.duration),
-                release_date: ep.release_date,
-                episode_thumbnails: files?.thumbnail ?? null,
-                episode_videos: files?.video ?? null,
-                series: { connect: { id } },
-              },
-            });
-          }
-        }
-
-        return {
-          success: true,
-          message: 'Series updated successfully.',
-        };
       });
+
+      return {
+        success: true,
+        message: 'Series and related data updated successfully.',
+      };
     } catch (error) {
-      console.log(error);
+      console.error('Failed to update series:', error);
       return {
         success: false,
-        message: error.message || 'Failed to update series',
+        message: error.message || 'An unexpected error occurred.',
       };
     }
   }
+
+  // *update series
+  // async updateSeries(
+  //   id: string,
+  //   dto: UpdateSeriesDto,
+  //   files: Express.Multer.File[],
+  // ) {
+  //   try {
+  //     const existingSeries = await this.prisma.series.findUnique({
+  //       where: { id },
+  //       include: {
+  //         casts: true,
+  //         episodes: true,
+  //         seasons: true,
+  //       },
+  //     });
+
+  //     if (!existingSeries) {
+  //       return { success: false, message: 'Series not found' };
+  //     }
+
+  //     // -------------------------------
+  //     // PARSE JSON FIELDS
+  //     // -------------------------------
+  //     const parsedCast = dto.cast ? JSON.parse(dto.cast) : [];
+  //     const parsedEpisodes = dto.episodes ? JSON.parse(dto.episodes) : [];
+  //     const parsedSeasonInfo = dto.season_info
+  //       ? JSON.parse(dto.season_info)
+  //       : null;
+
+  //     // -------------------------------
+  //     // MAP FILES
+  //     // -------------------------------
+  //     const seriesThumbnailFile = files.find(
+  //       (f) => f.fieldname === 'series_thumbnail',
+  //     );
+  //     const seriesTrailerFile = files.find(
+  //       (f) => f.fieldname === 'series_trailer',
+  //     );
+  //     const directorThumbnailFile = files.find(
+  //       (f) => f.fieldname === 'director_thumbnail',
+  //     );
+  //     const seasonThumbnailFile = files.find(
+  //       (f) => f.fieldname === 'season_thumbnail',
+  //     );
+
+  //     const castThumbnailsMap = new Map<string, Express.Multer.File>();
+  //     const episodeFilesMap = new Map<
+  //       string,
+  //       { thumbnail?: Express.Multer.File; video?: Express.Multer.File }
+  //     >();
+
+  //     for (const file of files) {
+  //       const { fieldname } = file;
+
+  //       if (fieldname.startsWith('cast_')) {
+  //         const key = fieldname.replace('cast_', '');
+  //         castThumbnailsMap.set(key, file);
+  //       }
+
+  //       // episode_key_thumbnail or episode_key_video
+  //       if (fieldname.startsWith('episode_')) {
+  //         const parts = fieldname.split('_');
+  //         const key = parts[1];
+  //         const type = parts[2] as 'thumbnail' | 'video';
+
+  //         if (!episodeFilesMap.has(key)) {
+  //           episodeFilesMap.set(key, {});
+  //         }
+  //         episodeFilesMap.get(key)![type] = file;
+  //       }
+  //     }
+
+  //     // -------------------------------
+  //     // FILE UPLOADS
+  //     // -------------------------------
+  //     const uploadedCastThumbnails = new Map<string, string>();
+
+  //     for (const [castId, file] of castThumbnailsMap.entries()) {
+  //       const fileName = `${StringHelper.randomString()}_${file.originalname}`;
+  //       await SojebStorage.put(
+  //         `${appConfig().storageUrl.cast}/${fileName}`,
+  //         file.buffer,
+  //       );
+  //       uploadedCastThumbnails.set(castId, fileName);
+  //     }
+
+  //     const uploadedEpisodeFiles = new Map<
+  //       string,
+  //       { thumbnail?: string; video?: string }
+  //     >();
+
+  //     for (const [key, pair] of episodeFilesMap.entries()) {
+  //       const uploaded: { thumbnail?: string; video?: string } = {};
+
+  //       if (pair.thumbnail) {
+  //         const n = `${StringHelper.randomString()}_${pair.thumbnail.originalname}`;
+  //         await SojebStorage.put(
+  //           `${appConfig().storageUrl.episode}/${n}`,
+  //           pair.thumbnail.buffer,
+  //         );
+  //         uploaded.thumbnail = n;
+  //       }
+  //       if (pair.video) {
+  //         const n = `${StringHelper.randomString()}_${pair.video.originalname}`;
+  //         await SojebStorage.put(
+  //           `${appConfig().storageUrl.episode}/${n}`,
+  //           pair.video.buffer,
+  //         );
+  //         uploaded.video = n;
+  //       }
+
+  //       uploadedEpisodeFiles.set(key, uploaded);
+  //     }
+
+  //     // -------------------------------
+  //     // UPDATE PROCESS (TRANSACTION)
+  //     // -------------------------------
+  //     return await this.prisma.$transaction(async (tx) => {
+  //       // -------------------------------
+  //       // UPDATE SERIES MAIN DATA
+  //       // -------------------------------
+  //       const updatedSeries = await tx.series.update({
+  //         where: { id },
+  //         data: {
+  //           title: dto.title ?? existingSeries.title,
+  //           description: dto.description ?? existingSeries.description,
+  //           kids_mode: dto.kids_mode ?? existingSeries.kids_mode,
+  //           release_date: dto.release_date ?? existingSeries.release_date,
+  //           status: dto.status ?? existingSeries.status,
+  //           genres: dto.genres ?? existingSeries.genres,
+
+  //           ...(dto.category_id && {
+  //             category: { connect: { id: dto.category_id } },
+  //           }),
+
+  //           ...(seriesThumbnailFile && {
+  //             series_thumbnail: `${StringHelper.randomString()}_${seriesThumbnailFile.originalname}`,
+  //           }),
+
+  //           ...(seriesTrailerFile && {
+  //             series_trailer: `${StringHelper.randomString()}_${seriesTrailerFile.originalname}`,
+  //           }),
+
+  //           ...(directorThumbnailFile && {
+  //             director_thumbnail: `${StringHelper.randomString()}_${directorThumbnailFile.originalname}`,
+  //           }),
+  //         },
+  //       });
+
+  //       // -------------------------------
+  //       // CAST UPDATE
+  //       // -------------------------------
+  //       const castDeleteIds = dto.cast_delete_ids || [];
+
+  //       if (castDeleteIds.length > 0) {
+  //         await tx.cast.deleteMany({
+  //           where: { id: { in: castDeleteIds } },
+  //         });
+  //       }
+
+  //       for (const cast of parsedCast) {
+  //         if (cast.id) {
+  //           // UPDATE EXISTING CAST
+  //           await tx.cast.update({
+  //             where: { id: cast.id },
+  //             data: {
+  //               name: cast.name,
+  //               description: cast.description,
+  //               ...(uploadedCastThumbnails.get(cast.id) && {
+  //                 cast_thumbnail: uploadedCastThumbnails.get(cast.id),
+  //               }),
+  //             },
+  //           });
+  //         } else {
+  //           // NEW CAST
+  //           await tx.cast.create({
+  //             data: {
+  //               name: cast.name,
+  //               description: cast.description,
+  //               cast_thumbnail: uploadedCastThumbnails.get(cast.key) ?? null,
+  //               series: { connect: { id } },
+  //             },
+  //           });
+  //         }
+  //       }
+
+  //       // -------------------------------
+  //       // SEASON UPDATE
+  //       // -------------------------------
+  //       if (parsedSeasonInfo) {
+  //         let season = existingSeries.seasons[0];
+
+  //         if (!season) {
+  //           season = await tx.season.create({
+  //             data: {
+  //               title: parsedSeasonInfo.title,
+  //               release_date: parsedSeasonInfo.release_date,
+  //               ...(seasonThumbnailFile && {
+  //                 season_thumbnail: `${StringHelper.randomString()}_${seasonThumbnailFile.originalname}`,
+  //               }),
+  //               series: { connect: { id } },
+  //             },
+  //           });
+  //         } else {
+  //           await tx.season.update({
+  //             where: { id: season.id },
+  //             data: {
+  //               title: parsedSeasonInfo.title,
+  //               release_date: parsedSeasonInfo.release_date,
+  //               ...(seasonThumbnailFile && {
+  //                 season_thumbnail: `${StringHelper.randomString()}_${seasonThumbnailFile.originalname}`,
+  //               }),
+  //             },
+  //           });
+  //         }
+  //       }
+
+  //       // -------------------------------
+  //       // EPISODE UPDATE
+  //       // -------------------------------
+  //       const episodeDeleteIds = dto.episode_delete_ids || [];
+
+  //       if (episodeDeleteIds.length > 0) {
+  //         await tx.episode.deleteMany({
+  //           where: { id: { in: episodeDeleteIds } },
+  //         });
+  //       }
+
+  //       for (const ep of parsedEpisodes) {
+  //         const files = uploadedEpisodeFiles.get(ep.key);
+
+  //         if (ep.id) {
+  //           // UPDATE EXISTING EPISODE
+  //           await tx.episode.update({
+  //             where: { id: ep.id },
+  //             data: {
+  //               title: ep.title,
+  //               episode_number: Number(ep.episode_number),
+  //               description: ep.description,
+  //               duration: Number(ep.duration),
+  //               release_date: ep.release_date,
+  //               ...(files?.thumbnail && {
+  //                 episode_thumbnails: files.thumbnail,
+  //               }),
+  //               ...(files?.video && {
+  //                 episode_videos: files.video,
+  //               }),
+  //             },
+  //           });
+  //         } else {
+  //           // NEW EPISODE
+  //           await tx.episode.create({
+  //             data: {
+  //               title: ep.title,
+  //               episode_number: Number(ep.episode_number),
+  //               description: ep.description,
+  //               duration: Number(ep.duration),
+  //               release_date: ep.release_date,
+  //               episode_thumbnails: files?.thumbnail ?? null,
+  //               episode_videos: files?.video ?? null,
+  //               series: { connect: { id } },
+  //             },
+  //           });
+  //         }
+  //       }
+
+  //       return {
+  //         success: true,
+  //         message: 'Series updated successfully.',
+  //       };
+  //     });
+  //   } catch (error) {
+  //     console.log(error);
+  //     return {
+  //       success: false,
+  //       message: error.message || 'Failed to update series',
+  //     };
+  //   }
+  // }
 
   // *get all series
   async getAllSeries() {
@@ -756,9 +976,8 @@ export class SeriesService {
           orderBy: { created_at: 'desc' },
           select: { id: true },
         });
-        finalSeasonId = latestSeason?.id || null; // If no season exists, it remains null
+        finalSeasonId = latestSeason?.id || null;
       } else {
-        // Should be caught by controller validation, but safety check here
         return { success: false, message: 'Missing Series or Season ID.' };
       }
     } catch (error) {
@@ -779,7 +998,6 @@ export class SeriesService {
       // Upload Episode Thumbnail
       if (filePair.thumbnail) {
         const thumbName = `${StringHelper.randomString()}_${filePair.thumbnail.originalname}`;
-        // Removed mimetype argument to fix TS2554 error, assuming SojebStorage is updated elsewhere
         await SojebStorage.put(
           `${appConfig().storageUrl.episode}/${thumbName}`,
           filePair.thumbnail.buffer,
@@ -790,7 +1008,6 @@ export class SeriesService {
       // Upload Episode Video
       if (filePair.video) {
         const videoName = `${StringHelper.randomString()}_${filePair.video.originalname}`;
-        // Removed mimetype argument to fix TS2554 error, assuming SojebStorage is updated elsewhere
         await SojebStorage.put(
           `${appConfig().storageUrl.episode}/${videoName}`,
           filePair.video.buffer,
@@ -843,7 +1060,6 @@ export class SeriesService {
         };
       })
       .catch((error) => {
-        // Catch transaction error
         console.error('Transaction failed during episode addition:', error);
         return {
           success: false,
@@ -1027,6 +1243,10 @@ export class SeriesService {
               },
             },
           },
+          episodes: {
+            where: { season_id: null },
+            orderBy: { episode_number: 'asc' },
+          },
         },
       });
 
@@ -1104,18 +1324,35 @@ export class SeriesService {
             ...episode,
             episode_videos: episode.episode_videos
               ? SojebStorage.url(
-                  `${config.storageUrl.episode}/${episode.episode_videos}`,
-                )
+                `${config.storageUrl.episode}/${episode.episode_videos}`,
+              )
               : null,
             episode_thumbnails: episode.episode_thumbnails
               ? SojebStorage.url(
-                  `${config.storageUrl.episode}/${episode.episode_thumbnails}`,
-                )
+                `${config.storageUrl.episode}/${episode.episode_thumbnails}`,
+              )
               : null,
           }));
         }
         return season;
       });
+    }
+
+    // Direct Episodes (No Season)
+    if (formattedSeries.episodes) {
+      formattedSeries.episodes = formattedSeries.episodes.map((episode) => ({
+        ...episode,
+        episode_videos: episode.episode_videos
+          ? SojebStorage.url(
+            `${config.storageUrl.episode}/${episode.episode_videos}`,
+          )
+          : null,
+        episode_thumbnails: episode.episode_thumbnails
+          ? SojebStorage.url(
+            `${config.storageUrl.episode}/${episode.episode_thumbnails}`,
+          )
+          : null,
+      }));
     }
 
     return formattedSeries;
