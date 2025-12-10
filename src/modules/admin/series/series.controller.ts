@@ -37,7 +37,7 @@ import { AddEpisodesDto } from './dto/add-episode.dto';
 @Roles(Role.ADMIN)
 @Controller('admin/series')
 export class SeriesController {
-  constructor(private readonly seriesService: SeriesService) {}
+  constructor(private readonly seriesService: SeriesService) { }
 
   // *create a series
   @Post('create')
@@ -181,6 +181,10 @@ export class SeriesController {
         f.fieldname.startsWith('season_'),
       ); // ✅ New
 
+      const episodeThumbnailFiles = files.filter((f) =>
+        f.fieldname.startsWith('episode_'),
+      );
+
       // 3. Call Service
       const result = await this.seriesService.updateASeries(
         seriesId,
@@ -193,6 +197,7 @@ export class SeriesController {
         directorThumbnailFile,
         castThumbnailFiles,
         seasonThumbnailFiles, // ✅ Pass season files
+        episodeThumbnailFiles,
       );
 
       return result;

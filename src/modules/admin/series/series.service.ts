@@ -210,6 +210,7 @@ export class SeriesService {
     directorThumbnailFile: Express.Multer.File | undefined,
     castThumbnailFiles: Express.Multer.File[] | undefined,
     seasonThumbnailFiles: Express.Multer.File[] | undefined,
+    episodeThumbnailFiles: Express.Multer.File[] | undefined,
   ) {
     try {
       // 1. Check if series exists
@@ -266,6 +267,7 @@ export class SeriesService {
         );
 
       const castUpdatesPayloads: { id: string; data: any }[] = [];
+      const newCastPayloads: { data: any }[] = [];
       const castFilesMap = new Map<string, Express.Multer.File>(
         castThumbnailFiles?.map((f) => [f.fieldname, f]) || [],
       );
@@ -292,6 +294,28 @@ export class SeriesService {
                 id: castUpdate.id,
                 data: updatePayload,
               });
+            }
+          } else {
+            // Logic for new cast
+            const castFileKey = castUpdate.key
+              ? castFilesMap.get(`cast_${castUpdate.key}_thumbnail`)
+              : undefined;
+
+            if (castUpdate.name) {
+              const createPayload: any = {
+                name: castUpdate.name,
+                description: castUpdate.description,
+                series: { connect: { id: seriesId } },
+              };
+
+              if (castFileKey) {
+                createPayload.cast_thumbnail = await handleFileUpload(
+                  castFileKey,
+                  config.storageUrl.cast,
+                );
+              }
+
+              newCastPayloads.push({ data: createPayload });
             }
           }
         }
@@ -333,9 +357,20 @@ export class SeriesService {
       }
 
       const episodeUpdatesPayloads: { id: string; data: any }[] = [];
+      const episodeFilesMap = new Map<string, Express.Multer.File>(
+        episodeThumbnailFiles?.map((f) => [f.fieldname, f]) || [],
+      );
+
       if (episodeUpdates?.length) {
         for (const episodeUpdate of episodeUpdates) {
           if (episodeUpdate.id) {
+            const thumbnailFile = episodeFilesMap.get(
+              `episode_${episodeUpdate.id}_thumbnail`,
+            );
+            const videoFile = episodeFilesMap.get(
+              `episode_${episodeUpdate.id}_video`,
+            );
+
             const updatePayload: any = {};
             if (episodeUpdate.title !== undefined)
               updatePayload.title = episodeUpdate.title;
@@ -343,6 +378,21 @@ export class SeriesService {
               updatePayload.description = episodeUpdate.description;
             if (episodeUpdate.duration !== undefined)
               updatePayload.duration = Number(episodeUpdate.duration);
+            if (episodeUpdate.episode_number !== undefined)
+              updatePayload.episode_number = Number(episodeUpdate.episode_number);
+
+            if (thumbnailFile) {
+              updatePayload.episode_thumbnails = await handleFileUpload(
+                thumbnailFile,
+                config.storageUrl.episode,
+              );
+            }
+            if (videoFile) {
+              updatePayload.episode_videos = await handleFileUpload(
+                videoFile,
+                config.storageUrl.episode,
+              );
+            }
 
             if (Object.keys(updatePayload).length > 0) {
               episodeUpdatesPayloads.push({
@@ -382,6 +432,7 @@ export class SeriesService {
           ...castUpdatesPayloads.map((item) =>
             tx.cast.update({ where: { id: item.id }, data: item.data }),
           ),
+          ...newCastPayloads.map((item) => tx.cast.create({ data: item.data })),
           ...seasonUpdatesPayloads.map((item) =>
             tx.season.update({ where: { id: item.id }, data: item.data }),
           ),

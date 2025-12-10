@@ -14,6 +14,7 @@ export class UpdateCastMemberDto {
   @IsString() @IsOptional() id?: string;
   @IsString() @IsOptional() name?: string;
   @IsString() @IsOptional() description?: string;
+  @IsString() @IsOptional() key?: string;
 }
 
 export class UpdateEpisodeDto {
@@ -21,6 +22,7 @@ export class UpdateEpisodeDto {
   @IsOptional() @IsString() title?: string;
   @IsOptional() @IsString() description?: string;
   @IsOptional() duration?: number;
+  @IsOptional() episode_number?: number;
 }
 
 export class UpdateSeasonDto {
