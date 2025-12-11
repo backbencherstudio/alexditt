@@ -1408,4 +1408,105 @@ export class SeriesService {
 
     return formattedSeries;
   }
+
+  // Get a season details by seasonId
+  async getASeson(id: string) {
+    try {
+      const season = await this.prisma.season.findUnique({
+        where: { id },
+        include: {
+          episodes: {
+            orderBy: { episode_number: 'asc' },
+          },
+        },
+      });
+
+      if (!season) {
+        return {
+          success: false,
+          message: `Season with ID "${id}" not found.`,
+        };
+      }
+
+      const config = appConfig();
+      const formattedSeason = { ...season };
+
+      if (formattedSeason.season_thumbnail) {
+        formattedSeason.season_thumbnail = SojebStorage.url(
+          `${config.storageUrl.season}/${formattedSeason.season_thumbnail}`,
+        );
+      }
+
+      if (formattedSeason.episodes) {
+        formattedSeason.episodes = formattedSeason.episodes.map((episode) => ({
+          ...episode,
+          episode_videos: episode.episode_videos
+            ? SojebStorage.url(
+              `${config.storageUrl.episode}/${episode.episode_videos}`,
+            )
+            : null,
+          episode_thumbnails: episode.episode_thumbnails
+            ? SojebStorage.url(
+              `${config.storageUrl.episode}/${episode.episode_thumbnails}`,
+            )
+            : null,
+        }));
+      }
+
+      return {
+        success: true,
+        message: 'Season retrieved successfully',
+        data: formattedSeason,
+      };
+    } catch (error) {
+      console.error('Error fetching season details:', error);
+      return {
+        success: false,
+        message: 'Failed to fetch this season due to an unexpected error.',
+      };
+    }
+  }
+
+  // Get a episode details by episodeId
+  async getAEpisode(id: string) {
+    try {
+      const episode = await this.prisma.episode.findUnique({
+        where: { id },
+      });
+
+      if (!episode) {
+        return {
+          success: false,
+          message: `Episode with ID "${id}" not found.`,
+        };
+      }
+
+      const config = appConfig();
+      const formattedEpisode = { ...episode };
+
+      if (formattedEpisode.episode_videos) {
+        formattedEpisode.episode_videos = SojebStorage.url(
+          `${config.storageUrl.episode}/${formattedEpisode.episode_videos}`,
+        );
+      }
+      if (formattedEpisode.episode_thumbnails) {
+        formattedEpisode.episode_thumbnails = SojebStorage.url(
+          `${config.storageUrl.episode}/${formattedEpisode.episode_thumbnails}`,
+        );
+      }
+
+      return {
+        success: true,
+        message: 'Episode retrieved successfully',
+        data: formattedEpisode,
+      };
+    } catch (error) {
+      console.error('Error fetching episode details:', error);
+      return {
+        success: false,
+        message: 'Failed to fetch this episode due to an unexpected error.',
+      };
+    }
+  }
+
 }

@@ -114,6 +114,13 @@ export default () => ({
     attachment: '/attachment',
   },
 
+  fileUpload: {
+    maxSizeInGbMovie: parseInt(process.env.MAX_FILE_SIZE_GB_MOVIE, 10) || 10,
+    maxSizeInGbSeries: parseInt(process.env.MAX_FILE_SIZE_GB_SERIES, 10) || 10,
+    maxSizeInGbEpisode: parseInt(process.env.MAX_FILE_SIZE_GB_EPISODE, 10) || 10,
+    maxImageSizeInMb: parseInt(process.env.MAX_IMAGE_SIZE_MB, 10) || 50,
+  },
+
   defaultUser: {
     system: {
       username: process.env.SYSTEM_USERNAME,

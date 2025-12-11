@@ -46,10 +46,20 @@ export class UpdateSeriesDto {
   @IsDateString() @IsOptional() release_date?: string;
   @IsEnum(Status) @IsOptional() status?: Status;
   @IsString() @IsOptional() director_name?: string;
+
   @IsBoolean()
   @IsOptional()
-  @Transform(({ value }) => value === 'true' || value === true)
+  @Transform(({ value, obj, key }) => {
+    // Access raw value to avoid implicit conversion issues
+    const rawValue = obj[key];
+    if (rawValue === 'true' || rawValue === true) return true;
+    if (rawValue === 'false' || rawValue === false) return false;
+    // Fallback specific for string "false"
+    if (String(rawValue).trim().toLowerCase() === 'false') return false;
+    return String(rawValue).trim().toLowerCase() === 'true';
+  })
   kids_mode?: boolean;
+
   @IsString() @IsOptional() category_id?: string;
   @IsArray()
   @IsEnum(Genre, { each: true })
