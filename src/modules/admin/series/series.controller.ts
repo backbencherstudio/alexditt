@@ -30,6 +30,7 @@ import { Roles } from 'src/common/guard/role/roles.decorator';
 import { Role } from 'src/common/guard/role/role.enum';
 import { CreateSeasonEpisodeDto } from './dto/create-season-episode.dto';
 import { AddEpisodesDto } from './dto/add-episode.dto';
+import appConfig from 'src/config/app.config';
 
 @ApiBearerAuth()
 @ApiTags('Admin/Series')
@@ -37,12 +38,16 @@ import { AddEpisodesDto } from './dto/add-episode.dto';
 @Roles(Role.ADMIN)
 @Controller('admin/series')
 export class SeriesController {
-  constructor(private readonly seriesService: SeriesService) {}
+  constructor(private readonly seriesService: SeriesService) { }
 
   // *create a series
   @Post('create')
   @ApiConsumes('multipart/form-data')
-  @UseInterceptors(AnyFilesInterceptor())
+  @UseInterceptors(
+    AnyFilesInterceptor({
+      limits: { fileSize: appConfig().fileUpload.maxSizeInGbSeries * 1024 * 1024 * 1024 },
+    }),
+  )
   async createASeries(
     @Body() dto: CreateSeriesDto,
     @Req() req: any,
@@ -114,6 +119,48 @@ export class SeriesController {
         }
       }
 
+      // * Check file sizes
+      const IMAGE_MAX_SIZE_BYTES = appConfig().fileUpload.maxImageSizeInMb * 1024 * 1024;
+
+      if (seriesThumbnailFile.size > IMAGE_MAX_SIZE_BYTES) {
+        return {
+          success: false,
+          message: `Series thumbnail size should not exceed ${appConfig().fileUpload.maxImageSizeInMb} MB.`,
+        };
+      }
+
+      if (directorThumbnailFile && directorThumbnailFile.size > IMAGE_MAX_SIZE_BYTES) {
+        return {
+          success: false,
+          message: `Director thumbnail size should not exceed ${appConfig().fileUpload.maxImageSizeInMb} MB.`,
+        };
+      }
+
+      if (seasonThumbnailFile && seasonThumbnailFile.size > IMAGE_MAX_SIZE_BYTES) {
+        return {
+          success: false,
+          message: `Season thumbnail size should not exceed ${appConfig().fileUpload.maxImageSizeInMb} MB.`,
+        };
+      }
+
+      for (const file of castThumbnailsMap.values()) {
+        if (file.size > IMAGE_MAX_SIZE_BYTES) {
+          return {
+            success: false,
+            message: `Cast thumbnail '${file.originalname}' size should not exceed ${appConfig().fileUpload.maxImageSizeInMb} MB.`,
+          };
+        }
+      }
+
+      for (const pair of episodeFilesMap.values()) {
+        if (pair.thumbnail && pair.thumbnail.size > IMAGE_MAX_SIZE_BYTES) {
+          return {
+            success: false,
+            message: `Episode thumbnail '${pair.thumbnail.originalname}' size should not exceed ${appConfig().fileUpload.maxImageSizeInMb} MB.`,
+          };
+        }
+      }
+
       const result = await this.seriesService.createASeries(
         dto,
         userId,
@@ -144,7 +191,11 @@ export class SeriesController {
     summary:
       'Update Series details including Nested Data (Seasons, Casts, Episodes)',
   })
-  @UseInterceptors(AnyFilesInterceptor())
+  @UseInterceptors(
+    AnyFilesInterceptor({
+      limits: { fileSize: appConfig().fileUpload.maxSizeInGbSeries * 1024 * 1024 * 1024 },
+    }),
+  )
   async updateASeries(
     @Param('seriesId') seriesId: string,
     @Body() dto: UpdateSeriesDto,
@@ -181,6 +232,57 @@ export class SeriesController {
         f.fieldname.startsWith('season_'),
       ); // ✅ New
 
+      const episodeThumbnailFiles = files.filter((f) =>
+        f.fieldname.startsWith('episode_'),
+      );
+
+      // * Check file sizes
+      const IMAGE_MAX_SIZE_BYTES = appConfig().fileUpload.maxImageSizeInMb * 1024 * 1024;
+
+      if (seriesThumbnailFile && seriesThumbnailFile.size > IMAGE_MAX_SIZE_BYTES) {
+        return {
+          success: false,
+          message: `Series thumbnail size should not exceed ${appConfig().fileUpload.maxImageSizeInMb} MB.`,
+        };
+      }
+
+      if (directorThumbnailFile && directorThumbnailFile.size > IMAGE_MAX_SIZE_BYTES) {
+        return {
+          success: false,
+          message: `Director thumbnail size should not exceed ${appConfig().fileUpload.maxImageSizeInMb} MB.`,
+        };
+      }
+
+      for (const file of castThumbnailFiles) {
+        if (file.size > IMAGE_MAX_SIZE_BYTES) {
+          return {
+            success: false,
+            message: `Cast thumbnail '${file.originalname}' size should not exceed ${appConfig().fileUpload.maxImageSizeInMb} MB.`,
+          };
+        }
+      }
+
+      for (const file of seasonThumbnailFiles) {
+        if (file.size > IMAGE_MAX_SIZE_BYTES) {
+          return {
+            success: false,
+            message: `Season thumbnail '${file.originalname}' size should not exceed ${appConfig().fileUpload.maxImageSizeInMb} MB.`,
+          };
+        }
+      }
+
+      for (const file of episodeThumbnailFiles) {
+        // Only check thumbnails, exclude videos (though filtering by name 'episode_' matches both, we need to be careful)
+        // Wait, 'episode_..._thumbnail' vs 'episode_..._video'.
+        // The filter above catches all episode files. We should check if it's a thumbnail.
+        if (file.fieldname.includes('_thumbnail') && file.size > IMAGE_MAX_SIZE_BYTES) {
+          return {
+            success: false,
+            message: `Episode thumbnail '${file.originalname}' size should not exceed ${appConfig().fileUpload.maxImageSizeInMb} MB.`,
+          };
+        }
+      }
+
       // 3. Call Service
       const result = await this.seriesService.updateASeries(
         seriesId,
@@ -193,6 +295,7 @@ export class SeriesController {
         directorThumbnailFile,
         castThumbnailFiles,
         seasonThumbnailFiles, // ✅ Pass season files
+        episodeThumbnailFiles,
       );
 
       return result;
@@ -223,7 +326,11 @@ export class SeriesController {
   @ApiOperation({
     summary: 'Add a new Season and its Episodes to an existing Series',
   })
-  @UseInterceptors(AnyFilesInterceptor())
+  @UseInterceptors(
+    AnyFilesInterceptor({
+      limits: { fileSize: appConfig().fileUpload.maxSizeInGbSeries * 1024 * 1024 * 1024 },
+    }),
+  )
   async addSeasonToSeries(
     @Param('seriesId') seriesId: string,
     @Body() dto: CreateSeasonEpisodeDto,
@@ -274,6 +381,25 @@ export class SeriesController {
         }
       }
 
+      // * Check file sizes
+      const IMAGE_MAX_SIZE_BYTES = appConfig().fileUpload.maxImageSizeInMb * 1024 * 1024;
+
+      if (seasonThumbnailFile.size > IMAGE_MAX_SIZE_BYTES) {
+        return {
+          success: false,
+          message: `Season thumbnail size should not exceed ${appConfig().fileUpload.maxImageSizeInMb} MB.`,
+        };
+      }
+
+      for (const pair of episodeFilesMap.values()) {
+        if (pair.thumbnail && pair.thumbnail.size > IMAGE_MAX_SIZE_BYTES) {
+          return {
+            success: false,
+            message: `Episode thumbnail '${pair.thumbnail.originalname}' size should not exceed ${appConfig().fileUpload.maxImageSizeInMb} MB.`,
+          };
+        }
+      }
+
       // 4. Call Service to handle creation and uploads
       const result = await this.seriesService.createSeasonAndEpisodes(
         seriesId,
@@ -307,7 +433,11 @@ export class SeriesController {
     description: 'The ID of the season (required if seriesId is absent)',
     required: false,
   })
-  @UseInterceptors(AnyFilesInterceptor())
+  @UseInterceptors(
+    AnyFilesInterceptor({
+      limits: { fileSize: appConfig().fileUpload.maxSizeInGbEpisode * 1024 * 1024 * 1024 },
+    }),
+  )
   async addEpisodes(
     @Query('seriesId') seriesId: string, // Get seriesId from query
     @Query('seasonId') seasonId: string, // Get seasonId from query
@@ -355,6 +485,18 @@ export class SeriesController {
         }
       }
 
+      // * Check file sizes
+      const IMAGE_MAX_SIZE_BYTES = appConfig().fileUpload.maxImageSizeInMb * 1024 * 1024;
+
+      for (const pair of episodeFilesMap.values()) {
+        if (pair.thumbnail && pair.thumbnail.size > IMAGE_MAX_SIZE_BYTES) {
+          return {
+            success: false,
+            message: `Episode thumbnail '${pair.thumbnail.originalname}' size should not exceed ${appConfig().fileUpload.maxImageSizeInMb} MB.`,
+          };
+        }
+      }
+
       // 5. Call Service
       const result = await this.seriesService.addEpisodesToContainer(
         seriesId,
@@ -389,6 +531,18 @@ export class SeriesController {
   @Delete('episode/:id')
   async deleteAEpisode(@Param('id') id: string) {
     return this.seriesService.deleteAEpisode(id);
+  }
+
+  // Get season details
+  @Get('season/:id')
+  async getASeson(@Param('id') id: string) {
+    return this.seriesService.getASeson(id);
+  }
+
+  // Get episode details
+  @Get('episode/:id')
+  async getAEpisode(@Param('id') id: string) {
+    return this.seriesService.getAEpisode(id);
   }
 
   // *get series delete

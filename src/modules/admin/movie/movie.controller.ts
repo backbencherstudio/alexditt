@@ -29,6 +29,7 @@ import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { RolesGuard } from 'src/common/guard/role/roles.guard';
 import { Role } from 'src/common/guard/role/role.enum';
 import { Roles } from 'src/common/guard/role/roles.decorator';
+import appConfig from 'src/config/app.config';
 
 @ApiBearerAuth()
 @ApiTags('Admin/Movie')
@@ -36,11 +37,15 @@ import { Roles } from 'src/common/guard/role/roles.decorator';
 @Roles(Role.ADMIN)
 @Controller('admin/movie')
 export class MovieController {
-  constructor(private readonly movieService: MovieService) {}
+  constructor(private readonly movieService: MovieService) { }
 
   // *create a movie
   @Post('create')
-  @UseInterceptors(AnyFilesInterceptor())
+  @UseInterceptors(
+    AnyFilesInterceptor({
+      limits: { fileSize: appConfig().fileUpload.maxSizeInGbMovie * 1024 * 1024 * 1024 },
+    }),
+  )
   async createAMovie(
     @Body() createMovieDto: CreateMovieDto,
     @Req() req: any,
@@ -119,11 +124,11 @@ export class MovieController {
         castThumbnailsMap.set(file.fieldname, file);
       });
 
-      const IMAGE_MAX_SIZE_BYTES = 10 * 1024 * 1024;
+      const IMAGE_MAX_SIZE_BYTES = appConfig().fileUpload.maxImageSizeInMb * 1024 * 1024;
       if (movieThumbnailFile.size > IMAGE_MAX_SIZE_BYTES) {
         return {
           success: false,
-          message: 'Movie thumbnail size should not exceed 10 MB.',
+          message: `Movie thumbnail size should not exceed ${appConfig().fileUpload.maxImageSizeInMb} MB.`,
         };
       }
 
@@ -131,7 +136,7 @@ export class MovieController {
         if (file.size > IMAGE_MAX_SIZE_BYTES) {
           return {
             success: false,
-            message: `Cast thumbnail '${file.originalname}' size should not exceed 10 MB.`,
+            message: `Cast thumbnail '${file.originalname}' size should not exceed ${appConfig().fileUpload.maxImageSizeInMb} MB.`,
           };
         }
       }
@@ -139,7 +144,7 @@ export class MovieController {
       if (castThumbnailFiles.length > parsedCast.length) {
         return {
           success: false,
-          message: 'More cast thumbnails provided than cast members.',
+          message: `More cast thumbnails provided than cast members.`,
         };
       }
 
@@ -159,14 +164,16 @@ export class MovieController {
       console.error(error);
       return {
         success: false,
-        message: 'Failed to create movie.',
+        message: `Failed to create movie.`,
       };
     }
   }
 
   // *update a movie
   @Patch(':id')
-  @UseInterceptors(AnyFilesInterceptor())
+  @UseInterceptors(AnyFilesInterceptor({
+    limits: { fileSize: appConfig().fileUpload.maxSizeInGbMovie * 1024 * 1024 * 1024 },
+  }))
   async update(
     @Param('id') id: string,
     @Body() updateMovieDto: UpdateMovieDto,
