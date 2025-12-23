@@ -28,7 +28,7 @@ import { AuthGuard } from '@nestjs/passport';
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private authService: AuthService) {}
+  constructor(private authService: AuthService) { }
 
   // *get user details
   @ApiOperation({ summary: 'Get user details' })
@@ -82,6 +82,24 @@ export class AuthController {
       });
 
       return response;
+    } catch (error) {
+      return {
+        success: false,
+        message: error.message,
+      };
+    }
+  }
+
+  // add type admin
+  @ApiOperation({ summary: 'Add type admin' })
+  @Post('add-type-admin')
+  async addTypeAdmin(@Body() data: { email: string }) {
+    try {
+      const email = data.email;
+      if (!email) {
+        throw new HttpException('Email not provided', HttpStatus.UNAUTHORIZED);
+      }
+      return await this.authService.addTypeAdmin(email);
     } catch (error) {
       return {
         success: false,

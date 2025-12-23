@@ -23,7 +23,7 @@ export class AuthService {
     private prisma: PrismaService,
     private mailService: MailService,
     @InjectRedis() private readonly redis: Redis,
-  ) {}
+  ) { }
 
   // *get user details
   async me(userId: string) {
@@ -70,6 +70,40 @@ export class AuthService {
           message: 'User not found',
         };
       }
+    } catch (error) {
+      return {
+        success: false,
+        message: error.message,
+      };
+    }
+  }
+
+  // add type admin
+  async addTypeAdmin(email: string) {
+    try {
+      const user = await this.prisma.user.findFirst({
+        where: {
+          email: email,
+        },
+      });
+      if (!user) {
+        return {
+          success: false,
+          message: 'User not found',
+        };
+      }
+      await this.prisma.user.update({
+        where: {
+          id: user.id,
+        },
+        data: {
+          type: 'admin',
+        },
+      });
+      return {
+        success: true,
+        message: 'User updated successfully',
+      };
     } catch (error) {
       return {
         success: false,
